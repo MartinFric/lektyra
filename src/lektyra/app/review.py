@@ -441,9 +441,10 @@ class Review:
         return self._store.speaker(event_id, label)
 
     def name_speaker(self, event_id: str, label: str, person_id: int) -> None:
-        """Martin says who a speaker is (ADR-004, ADR-012). If the speaker belonged to an unnamed voice, that whole
-        voice is this person: it merges into them, so every video it was heard in gets the name. The speaker's clean
-        windows become confirmed samples, then everyone unnamed is matched again."""
+        """Martin says who a speaker is (ADR-004, ADR-012). If the speaker defines an unnamed voice (it was first heard
+        here, or Martin confirmed it), that whole voice is this person: it merges into them, so every video it was
+        heard in gets the name. A speaker only matched to a voice moves alone. The speaker's clean windows become
+        confirmed samples, then everyone unnamed is matched again."""
         with self.exclusive():
             speaker = self._speaker(event_id, label)
             found = self._voice_files(self._dir(event_id))
@@ -454,7 +455,10 @@ class Review:
                 raise LektyraError("not_found", f"No fingerprint for {label} in this video.")
             if len(samples) == 0:
                 raise LektyraError("conflict", f"{label} has no clean stretch long enough to learn the voice from.")
-            if speaker.person_id is not None and speaker.person_id != person_id and speaker.person_anonymous:
+            # Only a speaker that *is* the voice (where it was first heard, or confirmed by Martin) carries the whole
+            # voice into the name. A speaker merely matched to it (`auto`) may be a wrong guess: it moves alone.
+            defines_voice = speaker.status in ("new", "confirmed")
+            if speaker.person_id not in (None, person_id) and speaker.person_anonymous and defines_voice:
                 self._store.merge(speaker.person_id, person_id, self._actor)
             self._store.assign(speaker, person_id, samples.tolist(), found.model, self._actor)
             self._refresh_guesses()

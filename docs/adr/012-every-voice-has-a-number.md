@@ -18,8 +18,11 @@ new voice gets the next number, and naming a number names that voice in every vi
    - otherwise it **founds** the next voice from its own samples (`new`); the founder's samples define the voice;
    - a speaker with too little clean speech (fewer than 10 clean 2 s windows) stays unknown rather than found a
      voice from noise.
-3. **Naming a speaker whose voice is unnamed names the whole voice:** the voice merges into the named person, who
-   keeps the older (lower) number. Its samples, speakers and refusals move with it.
+3. **Naming the speaker that defines an unnamed voice names the whole voice** (the speaker it was first heard in,
+   or one Martin confirmed): the voice merges into the named person, who keeps the older (lower) number. Its samples,
+   speakers and refusals move with it. **A speaker only matched to the voice (`auto`) moves alone**: the match may be
+   wrong, and a wrong guess must not carry a whole voice into a name (found 2026-11-14: naming a guest whose voice had
+   been matched to the moderator's named the moderator in three videos).
 4. **"Not this voice"** is stored; the speaker is matched again without it and may found its own voice.
 5. **Forgetting sticks** (ADR-005): a forgotten person's speakers are marked `no_profile` and never grow a new
    profile.

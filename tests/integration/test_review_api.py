@@ -132,6 +132,20 @@ def test_a_person_has_a_kind_a_lasting_key_and_a_knowledge_link(client: TestClie
     assert client.delete(f"/api/persons/{made['id']}").status_code == 204
 
 
+def test_naming_a_speaker_only_matched_to_a_voice_moves_it_alone(client: TestClient) -> None:
+    # TWO/S1 was matched (auto) to Voice 2, which ONE/S2 founded. Naming TWO/S1 must not rename Voice 2.
+    assert _speakers(client, TWO)["S1"]["status"] == "auto"
+    beta = client.post("/api/persons", json={"name": "Beta Person"}).json()
+    assert client.put(f"/api/events/{TWO}/speakers/S1/person", json={"person_id": beta["id"]}).status_code == 204
+    assert (_speakers(client, TWO)["S1"]["status"], _speakers(client, TWO)["S1"]["person_name"]) == (
+        "confirmed",
+        "Beta Person",
+    )
+    founder = _speakers(client, ONE)["S2"]
+    assert (founder["status"], founder["person_name"], founder["person_anonymous"]) == ("new", "Voice 2", True)
+    assert client.delete(f"/api/persons/{beta['id']}").status_code == 204
+
+
 def test_a_voice_can_be_heard_from_its_clearest_passages_in_every_video(client: TestClient) -> None:
     one = client.get(f"/api/events/{ONE}/speakers/S1/clips").json()
     assert [(c["label"], c["start_ms"], c["end_ms"]) for c in one] == [
