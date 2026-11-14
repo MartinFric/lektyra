@@ -9,6 +9,8 @@ interface SpeakerNamingProps {
   readonly eventId: string;
   readonly speaker: Speaker;
   readonly compact?: boolean;
+  /** Off where the card already shows the name large (the live screen): only the state and the actions. */
+  readonly showName?: boolean;
 }
 
 interface Who {
@@ -24,7 +26,7 @@ interface Who {
  * it was heard in. A match to a named person is only a suggestion until Martin confirms it (ADR-004: a wrong name
  * is worse than unknown).
  */
-export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNamingProps) {
+export function SpeakerNaming({ eventId, speaker, compact = false, showName = true }: SpeakerNamingProps) {
   const name = useNameSpeaker(eventId);
   const unname = useUnnameSpeaker(eventId);
   const reject = useRejectCandidate(eventId);
@@ -79,7 +81,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
     const heardBefore = speaker.status === 'auto';
     return row(
       <>
-        <strong className={styles.voiceName}>{current.name}</strong>
+        {showName ? <strong className={styles.voiceName}>{current.name}</strong> : null}
         {heardBefore ? (
           <Badge tone="signal" title="Matched to this voice from another video">
             heard before · {similarity(speaker.score ?? 0)}
@@ -100,7 +102,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
       <>
         {closest ? (
           <Button size="sm" variant="secondary" icon="check" disabled={busy} onClick={() => { pick({ id: closest.person_id, name: closest.name }); }}>
-            It is {surname(closest.name)}
+            It is {shortName(closest.name)}
           </Button>
         ) : null}
         {heardBefore ? (
@@ -116,7 +118,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
   if (speaker.status === 'confirmed' && current) {
     return row(
       <>
-        <strong className={styles.name}>{current.name}</strong>
+        {showName ? <strong className={styles.name}>{current.name}</strong> : null}
         <Badge tone="ok">
           <Icon name="check" size={12} /> named
         </Badge>
@@ -133,7 +135,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
     return row(
       <>
         <span className={styles.maybe}>{auto ? 'Sounds like' : 'Maybe'}</span>
-        <strong className={styles.name}>{current.name}</strong>
+        {showName ? <strong className={styles.name}>{current.name}</strong> : null}
         <Badge tone={auto ? 'signal' : 'claim'} title="Mean similarity of the closest samples (≥ 0.70 sure, ≥ 0.55 maybe)">
           {similarity(speaker.score ?? 0)}
         </Badge>
@@ -143,7 +145,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
           Confirm
         </Button>
         <Button size="sm" variant="ghost" icon="x" disabled={busy} loading={reject.isPending} onClick={() => { refuse(current); }}>
-          Not {surname(current.name)}
+          Not {shortName(current.name)}
         </Button>
         {picker('Other…')}
       </>,
@@ -163,7 +165,8 @@ export function SpeakerNaming({ eventId, speaker, compact = false }: SpeakerNami
   );
 }
 
-/** "Robert Fico" → "Fico": how a guest is referred to on air, short enough for a button. */
-function surname(name: string): string {
+/** "Robert Fico" → "Fico" (how a guest is referred to on air, short enough for a button); "Voice 5" stays whole. */
+function shortName(name: string): string {
+  if (/^Voice \d+$/.test(name)) return name;
   return name.trim().split(/\s+/).at(-1) ?? name;
 }

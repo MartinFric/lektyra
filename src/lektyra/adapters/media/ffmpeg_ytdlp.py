@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict
 from lektyra.domain.audio import SAMPLE_RATE
 from lektyra.ports import SourceInfo
 
+DOWNLOAD_HEIGHT: Final = 720
 DIRECT_SUFFIXES: Final = (
     ".m3u8",
     ".mpd",
@@ -48,6 +49,7 @@ class _ProbeStream(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     codec_type: str | None = None
+    height: int | None = None
 
 
 class _ProbeProgram(BaseModel):
@@ -216,6 +218,54 @@ class FfmpegYtdlpSource:
         if ffmpeg.stdout is None:
             raise RuntimeError("ffmpeg gave no stdout")
         return PcmStream([ytdlp, ffmpeg], ffmpeg.stdout)
+
+    def download(self, info: SourceInfo, out: Path, max_height: int = DOWNLOAD_HEIGHT) -> None:
+        """Save the source as a video file to watch next to a live session. HLS: the variant closest to
+        `max_height` (enough to see faces and name captions), copied, not re-encoded. Sites: yt-dlp, same cap."""
+        out.parent.mkdir(parents=True, exist_ok=True)
+        part = out.with_name(out.stem + ".part" + out.suffix)
+        if info.resolved_by in ("direct", "ta3"):
+            command = [
+                self._ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-nostdin", "-y",
+                *_network_args(info.media_url), "-i", info.media_url,
+                *self._video_map(info.media_url, max_height),
+                "-c", "copy", "-bsf:a", "aac_adtstoasc", "-movflags", "+faststart", str(part),
+            ]  # fmt: skip
+        else:
+            command = [
+                self._ytdlp, "--no-playlist", "--no-warnings", "-f",
+                f"bv*[height<={max_height}]+ba/b[height<={max_height}]/b",
+                "--merge-output-format", "mp4", "-o", str(part), info.media_url,
+            ]  # fmt: skip
+        done = subprocess.run(command, check=False)
+        if done.returncode != 0 or not part.exists():
+            raise RuntimeError(f"the download failed (exit {done.returncode})")
+        part.replace(out)
+
+    def _video_map(self, media_url: str, max_height: int) -> list[str]:
+        """For a multi-variant HLS playlist: video and audio of the variant closest to `max_height` from below."""
+        if ".m3u8" not in media_url.split("?", 1)[0].lower():
+            return []
+        done = subprocess.run(
+            [self._ffprobe, "-v", "error", "-show_programs", "-show_streams", "-of", "json", media_url],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=90,
+        )
+        if done.returncode != 0:
+            return []
+        probe = _Probe.model_validate_json(done.stdout or "{}")
+
+        def height(p: _ProbeProgram) -> int:
+            return max((s.height or 0 for s in p.streams if s.codec_type == "video"), default=0)
+
+        both = [p for p in probe.programs if height(p) > 0 and any(s.codec_type == "audio" for s in p.streams)]
+        if not both:
+            return []
+        fitting = [p for p in both if height(p) <= max_height]
+        chosen = max(fitting, key=height) if fitting else min(both, key=height)
+        return ["-map", f"0:p:{chosen.program_id}:v:0", "-map", f"0:p:{chosen.program_id}:a:0"]
 
     def _audio_map(self, media_url: str) -> list[str]:
         """For a multi-variant HLS playlist: map the audio of its lowest-bitrate variant; else let ffmpeg choose."""

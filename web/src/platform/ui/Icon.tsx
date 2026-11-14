@@ -22,6 +22,7 @@ const PATHS = {
   star: 'M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8z',
   chevron: 'M9 6l6 6-6 6',
   follow: 'M12 5v14M6 13l6 6 6-6',
+  broadcast: 'M12 12h.01M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8',
 } as const;
 
 export type IconName = keyof typeof PATHS;

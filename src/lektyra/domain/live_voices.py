@@ -12,11 +12,13 @@ from typing import Final
 import numpy as np
 import numpy.typing as npt
 
-from lektyra.domain.diarization import UNCLEAR
+from lektyra.domain.audio import FRAME_MS, Curve
+from lektyra.domain.diarization import HOP_MS, UNCLEAR, WINDOW_MS
 
 JOIN: Final = 0.40  # a window this close to a speaker's centroid is that speaker (calibrated, ADR-013)
 FOUND: Final = 5  # unexplained windows that agree with each other found a new speaker (~5 s of speech)
 KEEP_PENDING: Final = 6
+SPEECH_SHARE: Final = 0.6  # a window is fingerprinted when at least this share of its frames is speech
 
 Vector = npt.NDArray[np.float32]
 
@@ -25,6 +27,37 @@ def _unit(v: Vector) -> Vector:
     n = float(np.linalg.norm(v))
     out: Vector = (v / n).astype(np.float32) if n > 0 else v.astype(np.float32)
     return out
+
+
+@dataclass
+class WindowPlanner:
+    """Which 2 s windows to fingerprint as audio arrives: every `hop_ms`, the last `window_ms`, if enough of it is
+    speech. Speech probabilities come in 32 ms frames from the start of the stream."""
+
+    window_ms: int = WINDOW_MS
+    hop_ms: int = HOP_MS
+    speech_share: float = SPEECH_SHARE
+    threshold: float = 0.5
+    _probs: list[float] = field(default_factory=list)
+    _offset: int = 0  # frames dropped from the front of _probs
+    _next_end: int = WINDOW_MS
+
+    def feed(self, probs: Curve) -> list[tuple[int, int]]:
+        """Windows (start_ms, end_ms) that are due now and worth a fingerprint."""
+        self._probs.extend(float(p) for p in probs)
+        heard_ms = (self._offset + len(self._probs)) * FRAME_MS
+        due: list[tuple[int, int]] = []
+        while self._next_end <= heard_ms:
+            start = self._next_end - self.window_ms
+            a, b = start // FRAME_MS - self._offset, self._next_end // FRAME_MS - self._offset
+            frames = self._probs[max(a, 0) : b]
+            if frames and sum(p >= self.threshold for p in frames) / len(frames) >= self.speech_share:
+                due.append((start, self._next_end))
+            self._next_end += self.hop_ms
+        keep_from = max(0, (self._next_end - self.window_ms) // FRAME_MS - self._offset)
+        del self._probs[:keep_from]
+        self._offset += keep_from
+        return due
 
 
 @dataclass

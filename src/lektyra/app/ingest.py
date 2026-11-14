@@ -142,7 +142,7 @@ class _PieceCutter:
         return self._last_cut_ms
 
 
-def default_source(settings: Settings) -> MediaSource:
+def default_source(settings: Settings) -> FfmpegYtdlpSource:
     return FfmpegYtdlpSource(
         settings.ffmpeg, settings.ffprobe, settings.ytdlp, resolvers=[Ta3Resolver(settings.ffprobe)]
     )

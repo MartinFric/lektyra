@@ -3,7 +3,7 @@ other videos are matched again, "not this person" sticks, forgetting deletes, an
 No real audio or voice is used (ADR-005). Needs the local Postgres: `docker compose up -d`."""
 
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -14,8 +14,9 @@ from fastapi.testclient import TestClient
 
 from lektyra.adapters.store.postgres import Store, ensure_database, with_database
 from lektyra.adapters.web.api import create_app
+from lektyra.app.live import LiveManager
 from lektyra.app.review import Review
-from lektyra.settings import load_settings
+from lektyra.settings import Settings, load_settings
 
 pytestmark = pytest.mark.slow
 
@@ -73,7 +74,14 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     _event(events / THREE, [c], rng)
     store = Store(url)
     store.migrate(ROOT / "migrations")
-    with TestClient(create_app(Review(store, events, "test"), None)) as test_client:
+    data = events.parent
+    review = Review(store, events, "test")
+
+    def no_embedder() -> tuple[Callable[[list[np.ndarray]], np.ndarray], str]:
+        raise AssertionError("no live session runs in these tests")
+
+    live = LiveManager(Settings(data_dir=data), store, review, no_embedder)
+    with TestClient(create_app(review, live, None)) as test_client:
         yield test_client
     store.close()
 
@@ -208,3 +216,13 @@ def test_voice_map_places_every_speaker(client: TestClient) -> None:
     assert all(-1.0 <= p["x"] <= 1.0 and -1.0 <= p["y"] <= 1.0 for p in points)
     one_s1 = next(p for p in points if p["event_id"] == ONE and p["label"] == "S1")
     assert (one_s1["nearest"][0]["event_id"], one_s1["nearest"][0]["label"]) == (TWO, "S2")
+
+
+def test_live_guards(client: TestClient, tmp_path_factory: pytest.TempPathFactory) -> None:
+    assert client.get("/api/live").json() is None
+    assert client.get("/api/live/sources").json() == []
+    bad = client.post("/api/live", json={"source": "C:/Windows/notepad.exe"})
+    assert bad.status_code == 422
+    assert _error(bad)["code"] == "invalid"  # only files from data/videos or a stream address
+    assert client.post("/api/live/stop").status_code == 409
+    assert client.get("/api/live/media").status_code == 404

@@ -22,6 +22,7 @@ from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from starlette.exceptions import HTTPException
 
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
+from lektyra.app.live import LiveManager, LiveSource, LiveState
 from lektyra.app.review import (
     EventDetail,
     EventSummary,
@@ -104,6 +105,12 @@ class FlagIn(BaseModel):
     note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] = ""
 
 
+class LiveStartIn(BaseModel):
+    source: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    title: Short = ""
+    transcribe: bool = True
+
+
 class TextOut(BaseModel):
     name: str
     text: str
@@ -160,7 +167,7 @@ def _install_errors(app: FastAPI) -> None:
     app.add_exception_handler(Exception, internal_error)
 
 
-def _router(review: Review) -> APIRouter:
+def _router(review: Review, live: LiveManager) -> APIRouter:
     api = APIRouter(prefix="/api", responses={400: {"model": ErrorEnvelope}})
 
     @api.get("/health")
@@ -257,6 +264,28 @@ def _router(review: Review) -> APIRouter:
     def voices() -> list[VoicePoint]:
         return review.voices()
 
+    # live
+    @api.get("/live")
+    def live_state() -> LiveState | None:
+        return live.state()
+
+    @api.get("/live/sources")
+    def live_sources() -> list[LiveSource]:
+        return live.sources()
+
+    @api.post("/live", status_code=201)
+    def live_start(body: LiveStartIn) -> LiveState:
+        return live.start(body.source, body.title or None, body.transcribe)
+
+    @api.post("/live/stop")
+    def live_stop() -> LiveState:
+        return live.stop()
+
+    @api.get("/live/media", response_class=FileResponse)
+    def live_media() -> FileResponse:
+        path, media_type = live.media()
+        return FileResponse(path, media_type=media_type)
+
     @api.api_route("/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
     def unknown(rest: str) -> JSONResponse:
         return _error("not_found", f"No API route /api/{rest}.")
@@ -280,10 +309,10 @@ def _spa(app: FastAPI, dist: Path) -> None:
         return FileResponse(index, headers={"Cache-Control": "no-store"})
 
 
-def create_app(review: Review, dist: Path | None) -> FastAPI:
+def create_app(review: Review, live: LiveManager, dist: Path | None) -> FastAPI:
     app = FastAPI(title="lektyra", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
     _install_errors(app)
-    app.include_router(_router(review))
+    app.include_router(_router(review, live))
     if dist is not None:
         _spa(app, dist)
     return app

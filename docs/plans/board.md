@@ -20,9 +20,9 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 |---|---|---|---|---|
 | K26 | **Sunday 15. 11. live run: TA3 V politike 11:00, STVR O 5 minút 12 11:55, Markíza Na telo 13:00** | next | 2026-11-14 | guests from Denník N's weekend list; times are the usual slots (verify) · Martin watches |
 | K27 | **Guest profiles in advance: Kuffa, Hlina, Gašpar, Karas, Drucker, Šimečka + moderators Gudiak, Lacová, TA3's** | next | 2026-11-14 | 1–2 archive episodes each · Martin names voices in the UI |
-| K29 | **Live pipeline: piece → speech-to-text → voice match against profiles → claims every minute** | doing | 2026-11-14 | ADR-013: voices now + words per piece built · claims every minute still to wire in |
+| K29 | **Live pipeline: claims every minute** | next | 2026-11-14 | voices now + words per piece done (K31) · for Sunday: run `lektyra claims` + `end-pass` on each recorded show right after it (replay = live) |
 | K28 | **Orange TV source: record the PC's sound output (WASAPI loopback)** | next | 2026-11-14 | for Markíza; one stream at a time; ADR-007 adapter |
-| K31 | **UI: Live and Fact check screens** | doing | 2026-11-14 | Live built (ADR-013), walk pending · Fact check with K21/K22 |
+| K47 | **UI: Fact check screen** | later | 2026-11-14 | after K37 (claims model) and K21/K22 · [mockup](https://claude.ai/artifact/1aFxRsPc2SAiooBCp6jiWA) |
 | K32 | **UI: split the bundle** (694 kB, react-markdown on every page) | later | 2026-11-14 | lazy routes for Documents and Voice map |
 | K39 | **The go/no-go number: share of claims in 5 real debates that public data can settle** (CRZ, NR SR votes, company registers, government data) | next | 2026-11-14 | market scan: under ~10 % the moat is thin · after K20 gold set and K21 |
 | K41 | **Demo package: Sunday's debates with numbers** (names, lag, cost, claims with sources) | next | 2026-11-14 | runs on Martin's PC; recorded |
@@ -30,7 +30,6 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 | K44 | **Ads and pre-show: end-of-event cheap-model pass marks ad stretches; ad-only voices removed; analysis starts at the moderator's voice** | next | 2026-11-14 | extends K23 / ADR-011 · EPG gives the slot, not the real start or the breaks |
 | K37 | **Claims data model v2** (ADR + migration): statement → claim → canonical-claim link → check (append-only, as-of date) · entities with IČO · evidence with query + record ids · media item with platform | later | 2026-11-14 | canonical match = vector recall **and** equal slots (amount, unit, period, entity), else no reuse · typed vector dims + HNSW for claims · unaccent + pg_trgm (+ Slovak hunspell) |
 | K38 | **Verdict labels as Demagog's** (pravda, nepravda, zavádzajúce, neoveriteľné) **+ eval on the DemagogSK corpus** | later | 2026-11-14 | their 12.6k labelled claims become a test set (check the dataset's terms) · verdicts on claims, never a per-person "liar" score · contest/correction log |
-| K36 | **Push to `git@github.com:MartinFric/lektyra.git`** | doing | 2026-11-14 | ADR-014 · a server-side date for the history |
 | K40 | **Legal opinion before anyone else uses it** | blocked:Martin | 2026-11-14 | voiceprints of public figures (GDPR Art. 9, journalism exemption), broadcast capture via Orange TV, defamation · decides which users are possible |
 | K23 | **Ad breaks: detect and pause the analysis** | next | 2026-11-14 | ADR-011 |
 | K22 | **Fact check web fallback: 2 independent reliable sources, filtered claims kept** | next | 2026-11-14 | ADR-010 · search API bake-off open |
@@ -43,6 +42,8 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
+| K31 | **UI: Live screen** | done | 2026-11-14 | ADR-013 · walked on the full V politike Hlina–Takáč episode (YouTube, 720p): moderator recognised as Voice 3 (0.79) from older videos, Takáč as Voice 9 (0.88) from the D2 press conference, Hlina founded Voice 17, named during play, words every piece, 5:53 for $0.023 · player 1 s from lektyra |
+| K36 | **Pushed to `git@github.com:MartinFric/lektyra.git`** | done | 2026-11-14 | ADR-014 · GitHub holds the server-side date · pre-push: all tests + osv-scanner clean |
 | K35 | **lektyra is a personal project** | done | 2026-11-14 | ADR-014 · concept moved into `docs/plans/concept.md`, removed from the old work notes · no client tools, data or keys · checks get their own data service (K21) |
 | K45 | **Every voice gets a number across videos; persons get kind, key, knowledge link** | done | 2026-11-14 | ADR-012 · migration 0003 · 7 API integration tests |
 | K33 | **Dev-only npm advisories** | done | 2026-11-14 | minimatch pinned to 11.0.8 inside typescript-estree (npm overrides) · `npm audit`: 0 |

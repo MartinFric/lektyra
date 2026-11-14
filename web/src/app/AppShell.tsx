@@ -4,6 +4,7 @@ import { Button, Icon, type IconName, LogoMark } from '@/platform/ui';
 import styles from './AppShell.module.css';
 
 const NAV: readonly { readonly to: string; readonly label: string; readonly icon: IconName }[] = [
+  { to: '/live', label: 'Live', icon: 'broadcast' },
   { to: '/videos', label: 'Videos', icon: 'video' },
   { to: '/persons', label: 'Persons', icon: 'users' },
   { to: '/voices', label: 'Voice map', icon: 'voices' },

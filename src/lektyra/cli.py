@@ -318,6 +318,30 @@ def end_pass(
 
 
 @app.command()
+def fetch(
+    url: Annotated[str, typer.Argument(help="A TA3 article or ta3:<id>, YouTube, Facebook, a direct .m3u8/.mp4")],
+    name: Annotated[str | None, typer.Option(help="File name in data/videos (default: from the title)")] = None,
+) -> None:
+    """Download a video into data/videos/ to watch it next to a live session in the UI (ADR-013). Research use only,
+    stays local (ADR-005)."""
+    from lektyra.app.ingest import default_source
+    from lektyra.domain.naming import slug
+
+    settings = load_settings()
+    source = default_source(settings)
+    info = source.resolve(url)
+    if info.is_live:
+        raise typer.BadParameter("this is a live stream: start it in the UI's Live screen instead of downloading it")
+    stem = name or slug(info.title, 80) or "video"
+    out = settings.data_dir / "videos" / (stem if stem.endswith(".mp4") else f"{stem}.mp4")
+    print(f"title    {info.title}")
+    print(f"length   {info.duration_s / 60:.1f} min" if info.duration_s else "length   unknown")
+    print(f"saving   {out}")
+    source.download(info, out)
+    print(f"done     {out.stat().st_size / 1e6:.0f} MB")
+
+
+@app.command()
 def ui(
     port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
     database: Annotated[
@@ -332,6 +356,7 @@ def ui(
 
     from lektyra.adapters.store.postgres import Store, database_name, ensure_database, with_database
     from lektyra.adapters.web.api import create_app
+    from lektyra.app.live import LiveManager, ecapa
     from lektyra.app.review import Review
 
     settings = load_settings()
@@ -352,4 +377,5 @@ def ui(
     built = (dist / "index.html").exists()
     print(f"ui       http://127.0.0.1:{port}/{'' if built else '  (not built: npm run build in web/)'}")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
-    uvicorn.run(create_app(review, dist), host="127.0.0.1", port=port, log_level="warning")
+    live = LiveManager(settings, store, review, ecapa(settings))
+    uvicorn.run(create_app(review, live, dist), host="127.0.0.1", port=port, log_level="warning")

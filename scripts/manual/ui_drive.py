@@ -150,8 +150,9 @@ def send(op: str, args: list[str], port: int) -> int:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+    waiting_s = float(args[0]) / 1000 if op == "wait" and args else 0.0
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
+        with urllib.request.urlopen(request, timeout=60 + waiting_s) as response:
             answer = Answer.model_validate_json(response.read())
     except urllib.error.URLError:
         print("no driver running: start `ui_drive.py serve` first", file=sys.stderr)

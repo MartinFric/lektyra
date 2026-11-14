@@ -3,7 +3,7 @@
 import numpy as np
 
 from lektyra.domain.diarization import UNCLEAR
-from lektyra.domain.live_voices import OnlineSpeakers
+from lektyra.domain.live_voices import OnlineSpeakers, WindowPlanner
 
 DIM = 32
 
@@ -51,3 +51,13 @@ def test_noise_that_sounds_like_nobody_stays_unclear() -> None:
     noise = [tracker.add(rng.normal(0, 1, DIM).astype(np.float32)) for _ in range(12)]
     assert set(noise) == {UNCLEAR}
     assert tracker.count == 1
+
+
+def test_windows_are_due_every_second_but_only_when_someone_speaks() -> None:
+    planner = WindowPlanner()
+    speech = np.full(31, 0.9, dtype=np.float32)  # ~1 s of 32 ms frames
+    silence = np.full(31, 0.1, dtype=np.float32)
+    due = planner.feed(speech) + planner.feed(speech) + planner.feed(speech)  # ~3 s of speech, fed in pieces
+    assert due == [(0, 2000)]  # the second window ends at 3000 ms, after 2976 ms heard: not due yet
+    due = planner.feed(silence) + planner.feed(silence) + planner.feed(silence)
+    assert due == [(1000, 3000)]  # 3 s of silence after: only the window still mostly speech is kept
