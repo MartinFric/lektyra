@@ -24,6 +24,8 @@ export const claimsViewSchema = z.object({
   stage: z.enum(['none', 'live', 'final']),
   minutes: z.number().int(),
   claims: z.array(claimSchema),
+  /** Claims said by a host, left out (K60). */
+  hidden_host: z.number().int(),
 });
 
 export type Claim = z.infer<typeof claimSchema>;

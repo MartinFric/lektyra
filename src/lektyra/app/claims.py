@@ -7,7 +7,7 @@ is reused unless `force`, so a replay is free and deterministic. After every min
 """
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -50,7 +50,10 @@ def run_claims(
     until_minute: int | None = None,
     force: bool = False,
     on_minute: Callable[[MinuteRecord, Ledger], None] = lambda _r, _l: None,
+    roles: Mapping[str, str] | None = None,
 ) -> ClaimsResult:
+    """`roles`: who the voice labels are, when known ("S1": "Braňo Kráľ (host)"); new minutes are told, so the
+    lekton names people and a host's words are not taken as claims (K60). Saved answers are reused as they are."""
     manifest = load_manifest(event_dir)
     items, _, _ = speaker_utterances(event_dir, engine, language)
     folder = event_dir / "claims" / model_dir(llm)
@@ -78,7 +81,8 @@ def run_claims(
             body = raw.read_text(encoding="utf-8")
         else:
             user = (
-                f"LEDGER:\n{ledger_digest(ledger)}\n\nCONTEXT (already processed):\n{context or '(none)'}\n\n"
+                f"{speakers_note(roles)}LEDGER:\n{ledger_digest(ledger)}\n\n"
+                f"CONTEXT (already processed):\n{context or '(none)'}\n\n"
                 f"NEW MINUTE {clock(start_ms)}-{clock(start_ms + MINUTE_MS)}:\n{new}"
             )
             answer = extractor.ask(user)
@@ -99,6 +103,17 @@ def run_claims(
         on_minute(record, ledger)
     _write(ledger, records, json_path, md_path, manifest.source.title, llm, engine)
     return ClaimsResult(ledger=ledger, minutes=records, json_path=json_path, md_path=md_path)
+
+
+def speakers_note(roles: Mapping[str, str] | None) -> str:
+    """Who is who, for the extractor. A host moderates: what a host says is never a claim (K60)."""
+    if not roles:
+        return ""
+    lines = "\n".join(f"{label}: {who}" for label, who in sorted(roles.items()))
+    return (
+        "SPEAKERS (as recognised by voice; a host or moderator asks and sums up: never add a claim said by a host, "
+        f"only by the guests):\n{lines}\n\n"
+    )
 
 
 def _write(ledger: Ledger, records: list[MinuteRecord], json_path: Path, md_path: Path, title: str, llm: str,
@@ -178,7 +193,14 @@ class EndPassResult:
 
 
 def run_end_pass(
-    event_dir: Path, *, api_key: SecretStr, llm: str, engine: str, language: str | None, force: bool = False
+    event_dir: Path,
+    *,
+    api_key: SecretStr,
+    llm: str,
+    engine: str,
+    language: str | None,
+    force: bool = False,
+    roles: Mapping[str, str] | None = None,
 ) -> EndPassResult:
     """The whole-picture review after the event (spike-plan §8). What it adds is what the live loop missed."""
     manifest = load_manifest(event_dir)
@@ -190,7 +212,7 @@ def run_end_pass(
     if raw.exists() and not force:
         body = raw.read_text(encoding="utf-8")
     else:
-        user = f"LEDGER:\n{ledger_digest(before, limit=500)}\n\nWHOLE TRANSCRIPT:\n{transcript}"
+        user = f"{speakers_note(roles)}LEDGER:\n{ledger_digest(before, limit=500)}\n\nWHOLE TRANSCRIPT:\n{transcript}"
         answer = OpenRouterClaimExtractor(api_key, llm).ask(user, system=END_PASS)
         body = answer.body
         if answer.status != 200:

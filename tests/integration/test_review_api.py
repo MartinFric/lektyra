@@ -499,7 +499,7 @@ def _claim(claim_id: str, at_ms: int) -> dict[str, object]:
 def test_claims_of_a_video_live_then_after_the_end_pass(client: TestClient) -> None:
     folder = EVENTS_DIR[0] / ONE
     url = f"/api/events/{ONE}/claims"
-    assert client.get(url).json() == {"model": None, "stage": "none", "minutes": 0, "claims": []}
+    assert client.get(url).json() == {"model": None, "stage": "none", "minutes": 0, "claims": [], "hidden_host": 0}
     live = {"ledger": {"claims": [_claim("c1", 61_000)], "minute": 3, "next_id": 2, "rejected": []}, "minutes": []}
     (folder / "claims-google__gemini-3.5-flash.json").write_text(json.dumps(live), encoding="utf-8")
     seen = client.get(url).json()
@@ -509,3 +509,24 @@ def test_claims_of_a_video_live_then_after_the_end_pass(client: TestClient) -> N
     (folder / "claims-google__gemini-3.5-flash-final.json").write_text(json.dumps(final), encoding="utf-8")
     after = client.get(url).json()
     assert (after["stage"], [c["id"] for c in after["claims"]]) == ("final", ["c2", "c1"])  # by time
+
+
+def test_claims_said_by_a_host_are_left_out(client: TestClient) -> None:
+    # K60 (Martin: "if we already recognise the host it will be easy to skip host claims"): ONE/S2 is Epsilon;
+    # once Epsilon is a host, the claims of S2 leave the view; the ledger keeps them (ids stay as answers know them).
+    host = next(s for s in _speakers(client, ONE).values() if s["person_name"] == "Epsilon Person")
+    claims = [_claim("c1", 1_000), {**_claim("c2", 2_000), "speaker": host["label"]}]
+    ledger = {"ledger": {"claims": claims, "minute": 1, "next_id": 3}}
+    folder = EVENTS_DIR[0] / ONE
+    for name in folder.glob("claims-*.json"):
+        name.unlink()
+    (folder / "claims-google__gemini-3.5-flash.json").write_text(json.dumps(ledger), encoding="utf-8")
+    url = f"/api/events/{ONE}/claims"
+    assert ([c["id"] for c in client.get(url).json()["claims"]], client.get(url).json()["hidden_host"]) == (
+        ["c1", "c2"],
+        0,
+    )
+    epsilon = _person(client, "Epsilon Person")
+    client.put(f"/api/persons/{epsilon.id}", json={"name": "Epsilon Person", "kind": "host"})
+    seen = client.get(url).json()
+    assert ([c["id"] for c in seen["claims"]], seen["hidden_host"]) == (["c1"], 1)

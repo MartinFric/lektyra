@@ -155,6 +155,7 @@ class ClaimsView(BaseModel):
     stage: Literal["none", "live", "final"]  # final: after the end pass (links, duplicates, what live missed)
     minutes: int
     claims: list[ClaimOut]
+    hidden_host: int = 0  # claims said by a host, left out (K60): a host asks and sums up
 
 
 class Paragraph(BaseModel):
@@ -640,12 +641,28 @@ class Review:
         except (ValueError, OSError):
             return ClaimsView(model=None, stage="none", minutes=0, claims=[])
         model = chosen.stem.removeprefix("claims-").removesuffix("-final").replace("__", "/", 1)
+        hosts = self._host_labels(event_id)
+        kept = [c for c in ledger.claims if c.speaker not in hosts]
         return ClaimsView(
             model=model,
             stage="final" if chosen in final else "live",
             minutes=ledger.minute,
-            claims=sorted(ledger.claims, key=lambda c: c.at_ms),
+            claims=sorted(kept, key=lambda c: c.at_ms),
+            hidden_host=len(ledger.claims) - len(kept),
         )
+
+    def _host_labels(self, event_id: str) -> set[str]:
+        """Speakers recognised as a host (a person of kind host): what they say is not a claim (K60). The ledger keeps
+        their claims, so ids stay as the saved answers know them; the view leaves them out."""
+        persons = {p.id: p for p in self._store.persons()}
+        return {
+            s.label
+            for s in self._store.speakers(event_id)
+            if s.person_id is not None
+            and s.status in ("confirmed", "auto", "new")
+            and (p := persons.get(s.person_id)) is not None
+            and p.kind == "host"
+        }
 
     # transcripts ------------------------------------------------------------------------------------------------
     def _variant(self, event_id: str, variant: str) -> Path:

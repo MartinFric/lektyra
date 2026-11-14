@@ -324,6 +324,13 @@ class LiveSession:
             self._claims_up_to(None)
             self._end_pass()
 
+    def _roles(self) -> dict[str, str]:
+        """The voice labels lektyra recognises now, as the claims loop should read them: "Braňo Kráľ (host)"."""
+        event_dir = self._event_dir
+        if event_dir is None:
+            return {}
+        return speaker_roles(self._store, event_dir.name)
+
     def _end_pass(self) -> None:
         """The whole-picture pass once the show is over: what live missed, links, duplicates (~$0.15 an hour)."""
         event_dir, key = self._event_dir, self._api_key
@@ -333,8 +340,9 @@ class LiveSession:
             self._message = "Reviewing all claims once more…"
         try:
             run_end_pass(
-                event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE
-            )
+                event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE,
+                roles=self._roles(),
+            )  # fmt: skip
         except Exception as error:  # the live ledger stays; the end pass can be run by hand (lektyra end-pass)
             log.warning("end pass failed: %s", error)
 
@@ -345,7 +353,7 @@ class LiveSession:
         try:
             result = run_claims(
                 event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE,
-                until_minute=minute,
+                until_minute=minute, roles=self._roles(),
             )  # fmt: skip
             with self._lock:
                 self._claims = sum(1 for c in result.ledger.claims if c.status == "open")
@@ -497,6 +505,17 @@ def check_source(source: str) -> None:
         raise LektyraError("invalid", SOURCES_HINT)
     if source.startswith("stvr:") and source not in ("stvr:1", "stvr:2"):
         raise LektyraError("invalid", "STVR live is stvr:1 (Jednotka) or stvr:2 (Dvojka).")
+
+
+def speaker_roles(store: Store, event_id: str) -> dict[str, str]:
+    """Who each named speaker of a video is, with what they are on air (K60): {"S1": "Braňo Kráľ (host)"}."""
+    persons = {p.id: p for p in store.persons()}
+    roles: dict[str, str] = {}
+    for s in store.speakers(event_id):
+        person = persons.get(s.person_id) if s.person_id is not None else None
+        if person is not None and not person.anonymous and s.status in ("confirmed", "auto", "new"):
+            roles[s.label] = f"{person.name} ({person.kind})"
+    return roles
 
 
 def media_type(path: Path) -> str:
