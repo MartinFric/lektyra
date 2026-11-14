@@ -107,8 +107,15 @@ type Source =
   | { readonly kind: 'person'; readonly personId: number }
   | { readonly kind: 'speaker'; readonly eventId: string; readonly label: string };
 
+interface ReelButtonProps {
+  readonly source: Source;
+  readonly showWhere?: boolean;
+  /** Called when this button starts its reel (not when it stops): e.g. select the row being heard. */
+  readonly onPlay?: () => void;
+}
+
 /** ▶ Hear this voice: plays its clearest passages; shows which clip of which video is playing. */
-export function ReelButton({ source, showWhere = true }: { readonly source: Source; readonly showWhere?: boolean }) {
+export function ReelButton({ source, showWhere = true, onPlay }: ReelButtonProps) {
   const reel = useReel();
   const client = useQueryClient();
   const key = source.kind === 'person' ? `person:${String(source.personId)}` : `speaker:${source.eventId}/${source.label}`;
@@ -129,6 +136,7 @@ export function ReelButton({ source, showWhere = true }: { readonly source: Sour
             reel.stop();
             return;
           }
+          onPlay?.();
           reel.play(key, () =>
             source.kind === 'person'
               ? client.query(personClipsQuery(source.personId))

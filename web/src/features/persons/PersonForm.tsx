@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { ReelButton } from '@/features/voices/Reel';
 import { count } from '@/platform/format';
 import { Badge, Button, Checkbox, Dialog, ErrorPanel, Field, Icon, Select, TextArea, TextInput } from '@/platform/ui';
 import {
@@ -63,7 +64,10 @@ export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
       }}
     >
       <header className={styles.header}>
-        <h2 className={styles.title}>{person ? person.name : 'New person'}</h2>
+        <div className={styles.titleRow}>
+          <h2 className={styles.title}>{person ? person.name : 'New person'}</h2>
+          {person && person.events > 0 ? <ReelButton source={{ kind: 'person', personId: person.id }} /> : null}
+        </div>
         {person?.anonymous ? (
           <p className={styles.hint}>
             A voice nobody has named yet. Give it a name and it is named in every video it was heard in.

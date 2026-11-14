@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router';
 import { count } from '@/platform/format';
 import { Badge, Button, Card, EmptyState, Icon, PageHeader, QueryView, Skeleton, TextInput } from '@/platform/ui';
 import { ReelButton } from '@/features/voices/Reel';
+import { useReel } from '@/features/voices/reelContext';
 import { KIND_LABELS, type Person, personsQuery } from './api';
 import { PersonForm } from './PersonForm';
 import styles from './PersonsPage.module.css';
@@ -15,7 +16,11 @@ export function PersonsPage() {
   const [filter, setFilter] = useState('');
   const editing = params.get('person');
 
+  const reel = useReel();
+  /** Select a person (or none, or a new one). What plays always belongs to the selected row: picking another row
+   * stops a reel of someone else, so a voice is never named while another one is heard. */
   const open = (value: string | null) => {
+    if (reel.active?.startsWith('person:') && reel.active !== `person:${value ?? ''}`) reel.stop();
     setParams(value === null ? {} : { person: value }, { replace: true });
   };
 
@@ -127,7 +132,13 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
             {p.events > 0 ? <Badge>{count(p.events, 'video')}</Badge> : null}
           </span>
         </button>
-        {p.events > 0 ? <ReelButton source={{ kind: 'person', personId: p.id }} showWhere={false} /> : null}
+        {p.events > 0 ? (
+          <ReelButton
+            source={{ kind: 'person', personId: p.id }}
+            showWhere={false}
+            onPlay={() => { onSelect(p.id); }}
+          />
+        ) : null}
       </li>
     ));
   return (

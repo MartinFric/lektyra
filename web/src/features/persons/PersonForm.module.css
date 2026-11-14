@@ -8,6 +8,13 @@
   gap: var(--s2);
 }
 
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
 .title {
   font-size: var(--text-xl);
   overflow-wrap: anywhere;
