@@ -18,10 +18,10 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
-| K26 | **Sunday 15. 11. live run: TA3 V politike 11:00, STVR O 5 minút 12 11:55, Markíza Na telo 13:00** | next | 2026-11-14 | guests from Denník N's weekend list; times are the usual slots (verify) · Martin watches |
-| K27 | **Guest profiles in advance: Kuffa, Hlina, Gašpar, Karas, Drucker, Šimečka + moderators Gudiak, Lacová, TA3's** | next | 2026-11-14 | 1–2 archive episodes each · Martin names voices in the UI |
+| K26 | **Sunday 15. 11. live run: TA3 V politike 11:00 (`ta3:live`), STVR O 5 minút 12 11:55 (`stvr:1`), Markíza Na telo 13:00 (no source yet)** | next | 2026-11-14 | [runbook](runbook-2026-11-15.md) · TA3 and STVR live sources tested tonight · Martin watches and names |
+| K27 | **Guest profiles in advance** | doing | 2026-11-14 | ready to name in the real DB: Hlina and Takáč (rehearsal), Kuffa (9-min clip, transcribed), Fico (Voice 1, 5 videos), TA3 moderator (Voice 3, 4 videos) · STVR's guests optional (runbook step 3) |
 | K29 | **Live pipeline: claims every minute** | next | 2026-11-14 | voices now + words per piece done (K31) · for Sunday: run `lektyra claims` + `end-pass` on each recorded show right after it (replay = live) |
-| K28 | **Orange TV source: record the PC's sound output (WASAPI loopback)** | next | 2026-11-14 | for Markíza; one stream at a time; ADR-007 adapter |
+| K28 | **Orange TV / Markíza: record the PC's sound output (WASAPI loopback)** | next | 2026-11-14 | Orange TV is DRM-protected, so only the sound output can be captured · not built: Sunday skips Markíza unless Martin wants it built tonight |
 | K47 | **UI: Fact check screen** | later | 2026-11-14 | after K37 (claims model) and K21/K22 · [mockup](https://claude.ai/artifact/1aFxRsPc2SAiooBCp6jiWA) |
 | K32 | **UI: split the bundle** (694 kB, react-markdown on every page) | later | 2026-11-14 | lazy routes for Documents and Voice map |
 | K39 | **The go/no-go number: share of claims in 5 real debates that public data can settle** (CRZ, NR SR votes, company registers, government data) | next | 2026-11-14 | market scan: under ~10 % the moat is thin · after K20 gold set and K21 |

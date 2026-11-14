@@ -63,7 +63,7 @@ export function StartPanel() {
             <Icon name="voices" size={18} />
             <span className={styles.optionText}>
               <strong>A live stream</strong>
-              <span className={styles.muted}>ta3:live, ta3:nrsr, or a YouTube / Facebook live address. Watch it on TV.</span>
+              <span className={styles.muted}>ta3:live, stvr:1 (Jednotka), stvr:2, ta3:nrsr, or a YouTube / Facebook live address. Watch it on TV.</span>
             </span>
           </label>
           {choice?.kind === 'stream' ? (

@@ -48,6 +48,7 @@ SAVE_EVERY_MS: Final = 5_000
 NOW_MS: Final = 2_500  # a speaker heard this recently is "speaking now"
 TAIL_MS: Final = 4_000
 RECENT_TURNS: Final = 80
+STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:")
 MEDIA_TYPES: Final = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -441,11 +442,11 @@ class LiveManager:
             if source in names:
                 media = self.videos_dir / source
                 target = str(media)
-            elif source.startswith(("https://", "http://", "ta3:")):
+            elif source.startswith(STREAM_PREFIXES):
                 target = source
             else:
                 raise LektyraError(
-                    "invalid", "Pick a file from data/videos or give a stream address (https://…, ta3:live)."
+                    "invalid", "Pick a file from data/videos or give a stream address (ta3:live, stvr:1, https://…)."
                 )
             key = self._settings.openrouter_api_key
             if transcribe and key is None:

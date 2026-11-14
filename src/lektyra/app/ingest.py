@@ -22,6 +22,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict
 
 from lektyra.adapters.media.ffmpeg_ytdlp import FfmpegYtdlpSource, FlacWriter
+from lektyra.adapters.media.stvr import StvrResolver
 from lektyra.adapters.media.ta3 import Ta3Resolver
 from lektyra.adapters.vad.silero_onnx import SileroVad, ensure_model
 from lektyra.domain.audio import (
@@ -144,7 +145,7 @@ class _PieceCutter:
 
 def default_source(settings: Settings) -> FfmpegYtdlpSource:
     return FfmpegYtdlpSource(
-        settings.ffmpeg, settings.ffprobe, settings.ytdlp, resolvers=[Ta3Resolver(settings.ffprobe)]
+        settings.ffmpeg, settings.ffprobe, settings.ytdlp, resolvers=[Ta3Resolver(settings.ffprobe), StvrResolver()]
     )
 
 

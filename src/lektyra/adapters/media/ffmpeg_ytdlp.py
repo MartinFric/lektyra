@@ -174,7 +174,7 @@ class FfmpegYtdlpSource:
 
     def open(self, info: SourceInfo, *, realtime: bool, log: IO[bytes] | None = None) -> PcmStream:
         err = log if log is not None else subprocess.DEVNULL
-        if info.resolved_by in ("direct", "ta3"):
+        if info.resolved_by in ("direct", "ta3", "stvr"):
             ffmpeg = subprocess.Popen(
                 [
                     self._ffmpeg,
@@ -224,7 +224,7 @@ class FfmpegYtdlpSource:
         `max_height` (enough to see faces and name captions), copied, not re-encoded. Sites: yt-dlp, same cap."""
         out.parent.mkdir(parents=True, exist_ok=True)
         part = out.with_name(out.stem + ".part" + out.suffix)
-        if info.resolved_by in ("direct", "ta3"):
+        if info.resolved_by in ("direct", "ta3", "stvr"):
             command = [
                 self._ffmpeg, "-hide_banner", "-loglevel", "error", "-stats", "-nostdin", "-y",
                 *_network_args(info.media_url), "-i", info.media_url,
