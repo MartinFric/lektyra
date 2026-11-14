@@ -36,9 +36,15 @@ listed whatever files happened to be in `data/videos/`.
 6. **The Live screen** shows the sessions as tabs, *Start now*, the scheduled runs (to come, running, what ran and
    its video) and the latest transcribed videos.
 
+7. **lektyra's backend is a background service** (amended 2026-11-14, Martin: "scheduled event should run when BE
+   is alive - it is background job - UI can just display it"): `lektyra serve` (`ui` is its old name) runs the
+   schedule, the live sessions and the API; the browser is only a view. The Windows task `lektyra`
+   (`scripts/install-service.ps1`) starts it hidden at logon and `scripts/serve.ps1` starts it again when it stops;
+   both containers restart with Docker. Idle until something runs (Martin: "stay idle if not").
+
 ## Consequences
 
-- The PC must be on and awake with `lektyra ui` running for a run to start; the UI says so.
+- The PC must be on and awake (it never sleeps on mains power) and logged in, so the task runs `lektyra serve`.
 - Each session costs a voice model in memory (~90 MB) and its share of the CPU; 4 at once is the cap.
 - Facebook pages that need a login do not open; adding browser cookies is a later, deliberate decision.
 

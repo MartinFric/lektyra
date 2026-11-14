@@ -43,6 +43,7 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
+| K57 | **lektyra's backend as a background service** (`lektyra serve`, Windows task at logon, hidden, restarted) | done | 2026-11-14 | Martin: the scheduled runs belong to the backend, the UI only shows them · ADR-016 §7 · containers `restart: unless-stopped` · idle ~120 MB, no voice model until a session · log data/logs/ |
 | K56 | **Speaker rows compact again; faces in the transcript; "Look for new videos"** | done | 2026-11-14 | found by Martin: the face pushed Change/× onto a new line in the transcript's side column · compact rows: icon-only Change (named), a check for named, the name gives way first · Sunday's TA3 10:58–12:05 and STVR 11:53–13:05 scheduled in the real DB |
 | K54 | **Scheduled live runs + Live screen rework** (schedule dialog, scheduled and transcribed lists; TA3, STVR 1/2, YouTube/Facebook public, PC sound, uploads played as live in MinIO, deletable) | done | 2026-11-14 | ADR-016 · rehearsed: TA3 + STVR scheduled side by side, stopped on time, both videos · upload played as live after its cache was removed · found and fixed: a test database swept the main pictures (per-database buckets now; the 9 pictures restored) |
 | K48 | **Several live sessions in one screen** | done | 2026-11-14 | ADR-016 · up to 4 in one `lektyra ui`, tabs |

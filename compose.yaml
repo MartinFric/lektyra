@@ -8,6 +8,7 @@ services:
   db:
     image: pgvector/pgvector:pg17
     container_name: lektyra-db
+    restart: unless-stopped  # back after a reboot, for the scheduled runs (ADR-016)
     environment:
       POSTGRES_USER: lektyra
       POSTGRES_DB: lektyra
@@ -27,6 +28,7 @@ services:
     # that still builds them. Pinned by digest: RELEASE.2026-08-04T00-00-00Z.
     image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     container_name: lektyra-minio
+    restart: unless-stopped  # back after a reboot, for the scheduled runs (ADR-016)
     command: ["server", "/data", "--console-address", ":9001"]
     env_file:
       - ${USERPROFILE:-${HOME}}/.secrets/lektyra-minio.env

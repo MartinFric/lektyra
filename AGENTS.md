@@ -69,7 +69,9 @@ The review UI (ADR-009): build once, then serve. Node 24 via fnm (`eval "$(fnm e
 
 ```
 cd web && npm ci && npm run build && cd ..   # web/dist; `npm run check` = typecheck + lint + tests
-uv run lektyra ui                            # http://127.0.0.1:8765 — migrates, syncs data/events, serves
+uv run lektyra serve                         # the backend + UI on http://127.0.0.1:8765 (`ui` = old name)
+pwsh scripts/install-service.ps1             # Windows task "lektyra": serve at logon, hidden, restarted (ADR-016)
+pwsh scripts/stop-service.ps1                # stop it (before `uv add`/`uv sync`); Start-ScheduledTask lektyra
 cd web && npm run dev                        # while working on the UI: 5173, /api proxied to 8765
 uv run lektyra ui --database lektyra_manual --reset --port 8799   # throwaway copy for skill manual-testing
 # Live (ADR-016): several sessions at once, scheduled runs (Live → Schedule…) start while `lektyra ui` runs.

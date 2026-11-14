@@ -485,15 +485,16 @@ def photo_remove(
     print("removed")
 
 
-@app.command()
-def ui(
+def serve(
     port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
     database: Annotated[
         str | None, typer.Option(help="Another database on the same server (e.g. lektyra_manual)")
     ] = None,
     reset: Annotated[bool, typer.Option(help="Drop and recreate --database first (never the main one)")] = False,
 ) -> None:
-    """The local review UI: persons, speakers, transcripts, ratings (ADR-009). Migrates, syncs data/events, serves."""
+    """lektyra's backend: the schedule, live sessions and the API, and the review UI it serves (ADR-009, ADR-016).
+    Migrates, syncs data/events, then runs until stopped. The browser is only a view: closing it stops nothing.
+    Started at logon by the Windows task "lektyra" (scripts/install-service.ps1)."""
     import logging
 
     import uvicorn
@@ -540,6 +541,10 @@ def ui(
         f"schedule {len(upcoming)} run(s) to come"
         + (f", next {upcoming[0].starts_at.astimezone():%d.%m. %H:%M}" if upcoming else "")
     )
-    print("         keep this running: scheduled runs start only while `lektyra ui` runs")
+    print("         this process runs the schedule and the live sessions; the browser only shows them")
     app_ = create_app(review, live, photos, uploads, schedule, dist)
     uvicorn.run(app_, host="127.0.0.1", port=port, log_level="warning")
+
+
+app.command(name="serve")(serve)
+app.command(name="ui", help="The same as `serve` (its first name).")(serve)
