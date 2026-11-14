@@ -11,6 +11,8 @@ description: What lektyra may store, show, send and commit, given copyrighted br
   `data/`, never published or shared as audio or video. Reports may quote short passages with the source.
 - **Voice embeddings and profiles are biometric data** (GDPR Art. 9 when used to identify someone). They stay in
   the local database. Before anything runs continuously or leaves this PC: a DPIA.
+- **Pictures of persons** (ADR-015) are personal data and someone's work: only for named public figures, from
+  Commons (licence kept) or their institution's own page; kept in lektyra's own MinIO, deleted by `forget`.
 - Persons in scope: people in a **public role**, speaking publicly. Moderators, journalists and guests are weaker
   cases: profile them only when needed for the test, and `forget` them after.
 

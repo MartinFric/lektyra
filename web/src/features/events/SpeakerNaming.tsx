@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { FaceOf } from '@/features/persons/PersonFace';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { similarity } from '@/platform/format';
 import { Badge, Button, Icon, IconButton, Spinner } from '@/platform/ui';
@@ -81,7 +82,12 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     const heardBefore = speaker.status === 'auto';
     return row(
       <>
-        {showName ? <strong className={styles.voiceName}>{current.name}</strong> : null}
+        {showName ? (
+          <>
+            <FaceOf personId={current.id} size="xs" />
+            <strong className={styles.voiceName}>{current.name}</strong>
+          </>
+        ) : null}
         {heardBefore ? (
           <Badge tone="signal" title="Matched to this voice from another video">
             heard before · {similarity(speaker.score ?? 0)}
@@ -115,10 +121,16 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     );
   }
 
-  if (speaker.status === 'confirmed' && current) {
+  // 'new' with a name: the voice was first heard here and named since; it is as good as named.
+  if ((speaker.status === 'confirmed' || speaker.status === 'new') && current) {
     return row(
       <>
-        {showName ? <strong className={styles.name}>{current.name}</strong> : null}
+        {showName ? (
+          <>
+            <FaceOf personId={current.id} size="sm" />
+            <strong className={styles.name}>{current.name}</strong>
+          </>
+        ) : null}
         <Badge tone="ok">
           <Icon name="check" size={12} /> named
         </Badge>
@@ -135,7 +147,12 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     return row(
       <>
         <span className={styles.maybe}>{auto ? 'Sounds like' : 'Maybe'}</span>
-        {showName ? <strong className={styles.name}>{current.name}</strong> : null}
+        {showName ? (
+          <>
+            <FaceOf personId={current.id} size="xs" />
+            <strong className={styles.name}>{current.name}</strong>
+          </>
+        ) : null}
         <Badge tone={auto ? 'signal' : 'claim'} title="Mean similarity of the closest samples (≥ 0.70 sure, ≥ 0.55 maybe)">
           {similarity(speaker.score ?? 0)}
         </Badge>

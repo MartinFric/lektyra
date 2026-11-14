@@ -73,3 +73,7 @@
 .spacer {
   flex: 1;
 }
+
+.merge {
+  margin-left: auto;
+}

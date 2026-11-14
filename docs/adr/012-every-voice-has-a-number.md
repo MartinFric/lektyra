@@ -30,6 +30,12 @@ new voice gets the next number, and naming a number names that voice in every vi
    changes (UUID) for knowledge kept elsewhere, and a knowledge link (a Wikidata id or a URL).
 7. Naming, re-matching and a live session's updates take turns behind one lock.
 
+*Amended 2026-11-14 (Martin: "MERGE TO BUTTON on not Named Voice only … if i identify that it is Robert
+Fico i can merge them"):* **Merge with…** on an unnamed voice's page does what point 3 does, without picking a
+speaker: the voice merges into the named person chosen in a search by name, its defining speakers become his
+names, speakers only matched to it come along as guesses. Only an unnamed voice merges, only into a named
+person.
+
 ## Consequences
 
 - A re-sync never renumbers. A video's first sync gives its new voices numbers in the order the videos were made.
@@ -40,4 +46,4 @@ new voice gets the next number, and naming a number names that voice in every vi
 ## Enforced by
 
 `tests/integration/test_review_api.py` (numbers across videos, merge keeps the number, refusal founds a voice,
-forgetting sticks, kind/key/link), `migrations/0003_voice_numbers.sql`.
+forgetting sticks, kind/key/link, merge with a named person), `migrations/0003_voice_numbers.sql`.

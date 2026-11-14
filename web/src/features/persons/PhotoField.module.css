@@ -1,0 +1,32 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3);
+  border: 1px dashed transparent;
+  border-radius: var(--radius);
+  transition: border-color 120ms var(--ease), background 120ms var(--ease);
+}
+
+.field[data-dragging] {
+  border-color: var(--signal);
+  background: var(--signal-soft);
+}
+
+.side {
+  display: grid;
+  gap: var(--s2);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.credit {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: var(--leading);
+}

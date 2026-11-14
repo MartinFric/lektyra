@@ -6,6 +6,7 @@ Naming a speaker is the one write with consequences: the speaker's clean windows
 every speaker Martin has not named is matched again, so one name can suggest the same voice everywhere else.
 """
 
+import logging
 import re
 import threading
 from collections.abc import Iterator
@@ -23,12 +24,14 @@ from lektyra.adapters.store.postgres import (
     FlagRow,
     PersonFields,
     PersonKind,
+    PhotoInfo,
     RatingRow,
     SpeakerRow,
     SpeakerStatus,
     Store,
 )
 from lektyra.app.ingest import load_manifest
+from lektyra.app.photos import Photos
 from lektyra.app.report import speaker_utterances
 from lektyra.app.transcribe import variant_of
 from lektyra.domain.clips import Span, choose_clips
@@ -38,6 +41,7 @@ from lektyra.domain.projection import project_2d
 from lektyra.errors import LektyraError
 
 EVENT_ID: Final = re.compile(r"^[\w.@-]+$")
+log = logging.getLogger("lektyra.review")
 ANSWER: Final = re.compile(r"^\d{4}\.json$")
 SPEAKER_LABEL: Final = re.compile(r"^S(\d+)$")
 CANDIDATES: Final = 3
@@ -117,6 +121,7 @@ class Person(BaseModel):
     note: str | None
     samples: int
     events: int
+    photo: PhotoInfo | None = None
 
 
 class Paragraph(BaseModel):
@@ -234,10 +239,11 @@ class _VoiceFiles:
 
 
 class Review:
-    def __init__(self, store: Store, events_dir: Path, actor: str) -> None:
+    def __init__(self, store: Store, events_dir: Path, actor: str, photos: Photos) -> None:
         self._store = store
         self._events = events_dir
         self._actor = actor
+        self._photos = photos
         # Naming, re-matching and live sessions' updates take turns, within this process (the lock) and across
         # processes (the store's advisory lock): two of them founding a voice for the same speaker would leave an
         # orphan.
@@ -309,7 +315,22 @@ class Review:
         with self.exclusive():
             self._refresh_guesses()
 
+    def _confirm_named_founders(self) -> None:
+        """A voice can get its name in the person form instead of by naming a speaker. Then the speakers it was first
+        heard in are Martin's names too: they become confirmed, with their clean windows as confirmed samples, as if he
+        had named them (found 2026-11-14: Voice 7, renamed Zuzana Števulová, still showed its speaker as unknown)."""
+        named = {p.id for p in self._store.persons() if not p.anonymous}
+        for s in self._store.speakers():
+            if s.status != "new" or s.person_id is None or s.person_id not in named:
+                continue
+            try:
+                samples, model = self._clean_windows(s.event_id, s.label)
+            except LektyraError:
+                continue  # its files are gone: it keeps the samples it founded the voice with
+            self._store.assign(s, s.person_id, samples.tolist(), model, self._actor)
+
     def _refresh_guesses(self) -> None:
+        self._confirm_named_founders()
         files: dict[str, _VoiceFiles | None] = {}
         for s in self._store.speakers():
             if s.status in ("confirmed", "new") or s.no_profile:
@@ -448,21 +469,49 @@ class Review:
         confirmed samples, then everyone unnamed is matched again."""
         with self.exclusive():
             speaker = self._speaker(event_id, label)
-            found = self._voice_files(self._dir(event_id))
-            if found is None:
-                raise LektyraError("not_found", "This video has no speakers yet: run `lektyra diarize` first.")
-            samples = found.samples(label)
-            if samples is None:
-                raise LektyraError("not_found", f"No fingerprint for {label} in this video.")
-            if len(samples) == 0:
-                raise LektyraError("conflict", f"{label} has no clean stretch long enough to learn the voice from.")
+            samples, model = self._clean_windows(event_id, label)
             # Only a speaker that *is* the voice (where it was first heard, or confirmed by Martin) carries the whole
             # voice into the name. A speaker merely matched to it (`auto`) may be a wrong guess: it moves alone.
             defines_voice = speaker.status in ("new", "confirmed")
             if speaker.person_id not in (None, person_id) and speaker.person_anonymous and defines_voice:
                 self._store.merge(speaker.person_id, person_id, self._actor)
-            self._store.assign(speaker, person_id, samples.tolist(), found.model, self._actor)
+            self._store.assign(speaker, person_id, samples.tolist(), model, self._actor)
             self._refresh_guesses()
+
+    def _clean_windows(self, event_id: str, label: str) -> tuple[Matrix, str]:
+        """The speaker's clean windows, to learn the voice from, and the embedder that made them."""
+        found = self._voice_files(self._dir(event_id))
+        if found is None:
+            raise LektyraError("not_found", "This video has no speakers yet: run `lektyra diarize` first.")
+        samples = found.samples(label)
+        if samples is None:
+            raise LektyraError("not_found", f"No fingerprint for {label} in this video.")
+        if len(samples) == 0:
+            raise LektyraError("conflict", f"{label} has no clean stretch long enough to learn the voice from.")
+        return samples, found.model
+
+    def merge_voice(self, voice_id: int, into_id: int) -> Person:
+        """Martin says an unnamed voice is someone ("Voice 4 is Robert Fico"): the whole voice merges into them, in
+        every video it was heard in, as if he had named the speaker that defines it (ADR-012 point 3). The speakers
+        that define the voice become his names, with their clean windows as confirmed samples; speakers only matched
+        to the voice (`auto`) come along as guesses. The person keeps the lower number of the two."""
+        with self.exclusive():
+            voice, into = self._store.person(voice_id), self._store.person(into_id)
+            if voice_id == into_id:
+                raise LektyraError("conflict", "A voice cannot be merged with itself.")
+            if not voice.anonymous:
+                raise LektyraError("conflict", f"{voice.name} has a name already. Only an unnamed voice can be merged.")
+            if into.anonymous:
+                raise LektyraError("conflict", f"{into.name} has no name either. Merge into a named person.")
+            defining = [
+                s for s in self._store.speakers() if s.person_id == voice_id and s.status in ("new", "confirmed")
+            ]
+            learned = [(s, *self._clean_windows(s.event_id, s.label)) for s in defining]  # fails before any change
+            self._store.merge(voice_id, into_id, self._actor)
+            for speaker, samples, model in learned:
+                self._store.assign(speaker, into_id, samples.tolist(), model, self._actor)
+            self._refresh_guesses()
+            return Person(**self._store.person(into_id).model_dump())
 
     def unname_speaker(self, event_id: str, label: str) -> None:
         with self.exclusive():
@@ -483,13 +532,24 @@ class Review:
         return [Person(**p.model_dump()) for p in self._store.persons()]
 
     def save_person(self, person_id: int | None, fields: PersonFields) -> Person:
-        new_id = self._store.save_person(person_id, fields, self._actor)
-        return Person(**self._store.person(new_id).model_dump())
+        """Create or edit a person. Renaming an unnamed voice names it in every video it was heard in."""
+        with self.exclusive():
+            before = self._store.person(person_id) if person_id is not None else None
+            new_id = self._store.save_person(person_id, fields, self._actor)
+            if before is not None and before.anonymous and not self._store.person(new_id).anonymous:
+                self._refresh_guesses()
+            return Person(**self._store.person(new_id).model_dump())
 
     def forget_person(self, person_id: int) -> None:
+        """The person, every voice sample and their picture go (ADR-005). The picture's file goes after the row;
+        if the picture store is down then, it goes when the UI next starts (the sweep)."""
         with self.exclusive():
             self._store.forget_person(person_id, self._actor)
             self._refresh_guesses()
+        try:
+            self._photos.sweep()
+        except LektyraError as err:
+            log.warning("forgotten, but the picture is not deleted yet (%s): the next start deletes it", err.message)
 
     # transcripts ------------------------------------------------------------------------------------------------
     def _variant(self, event_id: str, variant: str) -> Path:

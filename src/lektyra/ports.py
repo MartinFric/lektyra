@@ -48,6 +48,21 @@ class PcmSink(AbstractContextManager["PcmSink"], Protocol):
     def write(self, pcm: bytes) -> None: ...
 
 
+class ObjectStore(Protocol):
+    """Files kept by key (pictures, ADR-015): lektyra's own MinIO in production, memory in tests. A store that cannot
+    be reached raises LektyraError("unavailable"); a missing key raises LektyraError("not_found")."""
+
+    def put(self, key: str, data: bytes, content_type: str) -> None: ...
+
+    def get(self, key: str) -> bytes: ...
+
+    def delete(self, key: str) -> None:
+        """Gone afterwards; deleting a missing key is fine."""
+        ...
+
+    def keys(self, prefix: str) -> list[str]: ...
+
+
 class SpeechDetector(Protocol):
     """Speech probability per 512-sample frame. Stateful within one stream: call `reset` between streams."""
 

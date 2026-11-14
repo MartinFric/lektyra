@@ -20,3 +20,4 @@ review that keeps it true).
 | [012](012-every-voice-has-a-number.md) | Every voice gets a number that continues across videos | accepted |
 | [013](013-live-session.md) | A live session: voices now, words a piece behind | accepted |
 | [014](014-personal-project-own-data.md) | lektyra is a personal project and checks against its own data | accepted |
+| [015](015-a-face-next-to-a-name.md) | A face next to a name; pictures live in lektyra's own MinIO | accepted |

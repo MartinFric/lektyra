@@ -3,6 +3,7 @@ import { type ReactNode, useState } from 'react';
 import { similarity } from '@/platform/format';
 import { Icon, Popover, Spinner, TextInput } from '@/platform/ui';
 import { type Person, personsQuery, useCreatePersonByName } from './api';
+import { PersonFace } from './PersonFace';
 import styles from './PersonPicker.module.css';
 
 export interface PickerHint {
@@ -112,6 +113,7 @@ function PickerPanel({ hints, exclude, currentId, onPick }: PanelProps) {
             return (
               <li key={p.id} role="option" aria-selected={p.id === currentId}>
                 <button type="button" className={styles.option} onClick={() => { onPick({ id: p.id, name: p.name }); }}>
+                  <PersonFace person={p} size="xs" />
                   <span className={styles.optionName}>
                     {p.name}
                     {p.anonymous ? <span className={styles.party}>unnamed voice</span> : null}

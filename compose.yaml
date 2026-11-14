@@ -1,5 +1,8 @@
-# Local Postgres 17 + pgvector for the spike (ADR-005: local only, bound to 127.0.0.1).
-# Trust auth because the port is reachable only from this PC; there is no password to leak into the repo.
+# Local Postgres 17 + pgvector and lektyra's own MinIO (ADR-005: local only, bound to 127.0.0.1).
+# Postgres: trust auth because the port is reachable only from this PC; there is no password to leak into the repo.
+# MinIO (pictures, ADR-015): its own instance, never shared with other projects (ADR-014). The login is generated
+# into ~/.secrets/lektyra-minio.env (MINIO_ROOT_USER, MINIO_ROOT_PASSWORD), outside the repo; lektyra reads the same
+# file. Console: http://127.0.0.1:59001
 # migrations/*.sql run once, when the volume is created; later migrations get a runner (board K11).
 services:
   db:
@@ -19,5 +22,24 @@ services:
       interval: 5s
       retries: 10
 
+  objects:
+    # MinIO's own community images stopped in 2025 (the repository is archived); pgsty/minio is the community fork
+    # that still builds them. Pinned by digest: RELEASE.2026-08-04T00-00-00Z.
+    image: pgsty/minio@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
+    container_name: lektyra-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    env_file:
+      - ${USERPROFILE:-${HOME}}/.secrets/lektyra-minio.env
+    ports:
+      - "127.0.0.1:59000:9000"
+      - "127.0.0.1:59001:9001"
+    volumes:
+      - lektyra-minio:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      retries: 10
+
 volumes:
   lektyra-db: {}
+  lektyra-minio: {}

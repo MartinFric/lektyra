@@ -12,12 +12,16 @@ import {
   useForgetPerson,
   useSavePerson,
 } from './api';
+import { MergeDialog } from './MergeDialog';
+import { PhotoField } from './PhotoField';
 import styles from './PersonForm.module.css';
 
 interface PersonFormProps {
   readonly person: Person | null;
   readonly onSaved: (person: Person) => void;
   readonly onClose: () => void;
+  /** An unnamed voice was merged into a named person: show that person. */
+  readonly onMerged: (into: Person) => void;
 }
 
 function initialInput(person: Person | null): PersonInput {
@@ -33,9 +37,10 @@ function initialInput(person: Person | null): PersonInput {
 }
 
 /** Create or edit one person. Keyed by id by its parent, so switching persons starts from fresh state. */
-export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
+export function PersonForm({ person, onSaved, onClose, onMerged }: PersonFormProps) {
   const [input, setInput] = useState(() => initialInput(person));
   const [forgetting, setForgetting] = useState(false);
+  const [merging, setMerging] = useState(false);
   const save = useSavePerson();
   const forget = useForgetPerson();
   const error = save.error;
@@ -67,10 +72,16 @@ export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
         <div className={styles.titleRow}>
           <h2 className={styles.title}>{person ? person.name : 'New person'}</h2>
           {person && person.events > 0 ? <ReelButton source={{ kind: 'person', personId: person.id }} /> : null}
+          {person?.anonymous ? (
+            <Button size="sm" icon="merge" className={styles.merge} onClick={() => { setMerging(true); }}>
+              Merge with…
+            </Button>
+          ) : null}
         </div>
         {person?.anonymous ? (
           <p className={styles.hint}>
-            A voice nobody has named yet. Give it a name and it is named in every video it was heard in.
+            A voice nobody has named yet. Know who it is? <strong>Merge with…</strong> the person, or give it a new
+            name below: either way it is named in every video it was heard in.
           </p>
         ) : null}
         {person ? (
@@ -81,6 +92,8 @@ export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
           </div>
         ) : null}
       </header>
+
+      {person && !person.anonymous ? <PhotoField person={person} /> : null}
 
       {error && !nameError && error.details.length === 0 ? <ErrorPanel error={error} /> : null}
 
@@ -200,6 +213,17 @@ export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
         </Button>
       </footer>
 
+      {merging && person ? (
+        <MergeDialog
+          voice={person}
+          onClose={() => { setMerging(false); }}
+          onMerged={(into) => {
+            setMerging(false);
+            onMerged(into);
+          }}
+        />
+      ) : null}
+
       {forgetting && person ? (
         <Dialog
           title={`Forget ${person.name}?`}
@@ -229,8 +253,9 @@ export function PersonForm({ person, onSaved, onClose }: PersonFormProps) {
           }
         >
           <p>
-            This deletes the person, their <strong>{count(person.samples, 'voice sample')}</strong> and the names
-            in <strong>{count(person.events, 'video')}</strong>. Those speakers become unknown again. It cannot be undone.
+            This deletes the person, their <strong>{count(person.samples, 'voice sample')}</strong>, their
+            picture and the names in <strong>{count(person.events, 'video')}</strong>. Those speakers become unknown
+            again. It cannot be undone.
           </p>
         </Dialog>
       ) : null}

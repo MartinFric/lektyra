@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type RefObject, useRef, useState } from 'react';
 import { type Speaker, speakersQuery } from '@/features/events/api';
 import { SpeakerNaming } from '@/features/events/SpeakerNaming';
+import { FaceOf } from '@/features/persons/PersonFace';
 import { byLabel, speakerName } from '@/features/events/speakerName';
 import { flagsQuery, type Paragraph, transcriptQuery } from '@/features/transcript/api';
 import { FlagDialog } from '@/features/transcript/FlagDialog';
@@ -183,6 +184,7 @@ function NowCard({ state, eventId, speakers }: CardProps) {
         <div className={styles.nowBody} style={{ '--voice': voiceColor(label) }}>
           <div className={styles.nowWho}>
             <span className={styles.nowDot} aria-hidden="true" />
+            {speaker && speaker.person_id !== null ? <FaceOf personId={speaker.person_id} size="md" /> : null}
             <span className={styles.nowName}>{speaker ? speakerName(label, speakers).text : 'New voice'}</span>
             <span className={styles.mono}>{label}</span>
           </div>
@@ -233,6 +235,7 @@ function HeardRow({ live, position, eventId, speakers }: HeardRowProps) {
     <li className={styles.heardRow} style={{ '--voice': voiceColor(live.label) }}>
       <div className={styles.heardHead}>
         <span className={styles.nowDot} aria-hidden="true" />
+        {speaker && speaker.person_id !== null ? <FaceOf personId={speaker.person_id} size="xs" /> : null}
         <strong className={styles.heardName}>{speaker ? speakerName(live.label, speakers).text : live.label}</strong>
         <span className={styles.muted}>
           {talkTime(live.talk_s)} · {position - live.last_ms < 3000 ? 'now' : `${clock(position - live.last_ms)} ago`}

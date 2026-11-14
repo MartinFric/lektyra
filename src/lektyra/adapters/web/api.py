@@ -19,10 +19,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
+from lektyra.adapters.images.pictures import MAX_BYTES
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
 from lektyra.app.live import LiveDevices, LiveManager, LiveSource, LiveState
+from lektyra.app.photos import Photos
 from lektyra.app.review import (
     Clip,
     EventDetail,
@@ -91,6 +94,10 @@ class PersonIn(BaseModel):
 
 class NameIn(BaseModel):
     person_id: int
+
+
+class MergeIn(BaseModel):
+    into: int
 
 
 class RatingIn(BaseModel):
@@ -171,7 +178,7 @@ def _install_errors(app: FastAPI) -> None:
     app.add_exception_handler(Exception, internal_error)
 
 
-def _router(review: Review, live: LiveManager) -> APIRouter:
+def _router(review: Review, live: LiveManager, photos: Photos) -> APIRouter:
     api = APIRouter(prefix="/api", responses={400: {"model": ErrorEnvelope}})
 
     @api.get("/health")
@@ -202,6 +209,42 @@ def _router(review: Review, live: LiveManager) -> APIRouter:
     @api.delete("/persons/{person_id}", status_code=204)
     def forget_person(person_id: int) -> Response:
         review.forget_person(person_id)
+        return Response(status_code=204)
+
+    @api.post("/persons/{person_id}/merge")
+    def merge_person(person_id: int, body: MergeIn) -> Person:
+        """An unnamed voice is this named person: the whole voice moves to them (ADR-012)."""
+        return review.merge_voice(person_id, body.into)
+
+    # pictures (ADR-015)
+    @api.get("/persons/{person_id}/photo")
+    def person_photo(person_id: int) -> Response:
+        data, content_type = photos.get(person_id)
+        # The UI asks for /photo?v=<version>: a new picture is a new address, so this one never changes.
+        headers = {"Cache-Control": "private, max-age=31536000, immutable", "X-Content-Type-Options": "nosniff"}
+        return Response(data, media_type=content_type, headers=headers)
+
+    @api.put("/persons/{person_id}/photo")
+    async def upload_photo(person_id: int, request: Request) -> Person:
+        """The body is the picture itself (image/jpeg, image/png, image/webp, image/gif)."""
+        if not request.headers.get("content-type", "").startswith("image/"):
+            raise LektyraError("invalid", "Send the picture itself: a JPEG, PNG, WebP or GIF file.")
+        raw = bytearray()
+        async for chunk in request.stream():
+            raw += chunk
+            if len(raw) > MAX_BYTES:
+                raise LektyraError("invalid", "The picture is larger than 15 MB. Use a smaller one.")
+        saved = await run_in_threadpool(photos.upload, person_id, bytes(raw))
+        return Person(**saved.model_dump())
+
+    @api.post("/persons/{person_id}/photo/wikidata")
+    def photo_from_wikidata(person_id: int) -> Person:
+        """The picture Wikidata has for the person's knowledge link (Q…), with its licence and author."""
+        return Person(**photos.from_wikidata(person_id).model_dump())
+
+    @api.delete("/persons/{person_id}/photo", status_code=204)
+    def remove_photo(person_id: int) -> Response:
+        photos.remove(person_id)
         return Response(status_code=204)
 
     # videos
@@ -325,10 +368,10 @@ def _spa(app: FastAPI, dist: Path) -> None:
         return FileResponse(index, headers={"Cache-Control": "no-store"})
 
 
-def create_app(review: Review, live: LiveManager, dist: Path | None) -> FastAPI:
+def create_app(review: Review, live: LiveManager, photos: Photos, dist: Path | None) -> FastAPI:
     app = FastAPI(title="lektyra", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
     _install_errors(app)
-    app.include_router(_router(review, live))
+    app.include_router(_router(review, live, photos))
     if dist is not None:
         _spa(app, dist)
     return app

@@ -20,6 +20,7 @@ React review UI.
   - `architect`: where code goes;
   - `stt-engine`: speech-to-text adapters;
   - `voice-profiles`;
+  - `profile-pictures`: faces for named persons (ADR-015);
   - `eval`;
   - `privacy`: always, before touching data;
   - `testing`;
@@ -59,7 +60,7 @@ uv run lektyra doctor           # tools, keys (present or not, never their value
 uv run pytest -m "not slow"     # fast tests
 uv run mypy                     # strict
 uv run ruff check . && uv run ruff format --check .
-docker compose up -d            # local Postgres 17 + pgvector on 127.0.0.1:55432
+docker compose up -d            # local Postgres 17 + pgvector on 127.0.0.1:55432, lektyra's MinIO on :59000
 bash .githooks/hook-tests.sh    # the hooks' own tests
 uv run pytest                   # all tests, the API integration test too (needs Postgres)
 ```
@@ -107,3 +108,11 @@ Results so far: `docs/eval/` (screening, voices).
 An event is named by its folder, its id, or any unique part of the id.
 
 Keys live in `~/.secrets/lektyra.env` (`OPENROUTER_API_KEY`, `SONIOX_API_KEY`, `HF_TOKEN`). Never in the repo.
+MinIO's login (pictures, ADR-015) is generated into `~/.secrets/lektyra-minio.env`; compose and lektyra read it.
+
+Profile pictures (skill `profile-pictures`):
+```
+uv run lektyra photo missing                     # named persons without a picture
+uv run lektyra photo find "Robert Fico"          # Wikidata items for a name, people first
+uv run lektyra photo set 7 --wikidata Q57792     # Commons picture with licence and author
+```

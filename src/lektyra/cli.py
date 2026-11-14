@@ -5,12 +5,18 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated, NoReturn
 
 import typer
 
 from lektyra import __version__
 from lektyra.settings import SECRETS_FILE, load_settings
+
+if TYPE_CHECKING:
+    from lektyra.app.photos import Photos
+    from lektyra.errors import LektyraError
+    from lektyra.ports import ObjectStore
+    from lektyra.settings import Settings
 
 # Windows consoles and pipes default to cp1252; Slovak titles and "→" must never crash a run mid-stream.
 for _stream in (sys.stdout, sys.stderr):
@@ -341,6 +347,129 @@ def fetch(
     print(f"done     {out.stat().st_size / 1e6:.0f} MB")
 
 
+def _picture_store(settings: "Settings") -> "ObjectStore":
+    from lektyra.app.photos import open_objects
+
+    return open_objects(settings)
+
+
+def _sweep(photos: "Photos") -> None:
+    """Pictures nobody points at go (a forgotten person's); a store that is down only turns faces off."""
+    from lektyra.errors import LektyraError
+
+    try:
+        gone = photos.sweep()
+        print(f"pictures lektyra's MinIO{f', swept {gone} left over' if gone else ''}")
+    except LektyraError as err:
+        print(f"pictures off: {err.message}")
+
+
+# pictures (ADR-015, skill profile-pictures) -----------------------------------------------------------------------
+photo = typer.Typer(no_args_is_help=True, help="Profile pictures of named persons (ADR-015).")
+app.add_typer(photo, name="photo")
+Database = Annotated[str | None, typer.Option(help="Another database on the same server (e.g. lektyra_manual)")]
+
+
+def _photos(database: str | None) -> "Photos":
+    from lektyra.adapters.store.postgres import Store, with_database
+    from lektyra.app.photos import Photos
+
+    settings = load_settings()
+    store = Store(with_database(settings.database_url, database) if database else settings.database_url)
+    store.migrate(Path("migrations"))
+    return Photos(store, _picture_store(settings), settings.reviewer)
+
+
+def _fail(err: "LektyraError") -> NoReturn:
+    print(f"error    {err.message}", file=sys.stderr)
+    raise typer.Exit(code=1)
+
+
+@photo.command("missing")
+def photo_missing(database: Database = None) -> None:
+    """Named persons without a picture: id, name, kind, function, party, knowledge link."""
+    rows = _photos(database).missing()
+    for p in rows:
+        private = "" if p.public_figure else "   (not a public figure: no picture from the web)"
+        print(
+            f"{p.id:>5}  {p.name:<30} {p.kind:<10} {p.function or '-':<26} {p.party or '-':<12} "
+            f"{p.external_ref or '-'}{private}"
+        )
+    print(f"{len(rows)} named without a picture")
+
+
+@photo.command("find")
+def photo_find(name: Annotated[str, typer.Argument(help="The name as people say it")]) -> None:
+    """Wikidata items for a name, people first: which one is meant is yours (or the skill's) to decide."""
+    from lektyra.adapters.knowledge.wikimedia import Wikimedia
+    from lektyra.errors import LektyraError
+
+    try:
+        hits = Wikimedia().search(name)
+    except LektyraError as err:
+        _fail(err)
+    for h in hits:
+        kind = "person" if h.human else "other "
+        has = "picture" if h.has_picture else "-      "
+        print(f"{h.qid:<11} {kind} {has}  {h.label} — {h.description or 'no description'}")
+    if not hits:
+        print("nothing on Wikidata")
+
+
+@photo.command("set")
+def photo_set(
+    person: Annotated[int, typer.Argument(help="Person id (see `lektyra photo missing`)")],
+    wikidata: Annotated[str | None, typer.Option(help="Q-id: Wikidata's picture, licence and author")] = None,
+    file: Annotated[Path | None, typer.Option(help="A picture on this PC", exists=True, dir_okay=False)] = None,
+    url: Annotated[str | None, typer.Option(help="An https address of a picture")] = None,
+    source_url: Annotated[str | None, typer.Option(help="The page the picture is from (for --file / --url)")] = None,
+    license: Annotated[
+        str | None, typer.Option(help="As the source states it; empty = unknown, local use only")
+    ] = None,
+    author: Annotated[str | None, typer.Option(help="Photographer or owner, as credited")] = None,
+    database: Database = None,
+) -> None:
+    """Give a named person a picture. lektyra re-encodes it (WebP, ≤ 512 px, no metadata) and keeps its source."""
+    from lektyra.adapters.store.postgres import PhotoSource
+    from lektyra.errors import LektyraError
+
+    if sum(x is not None for x in (wikidata, file, url)) != 1:
+        raise typer.BadParameter("give exactly one of --wikidata, --file, --url")
+    photos = _photos(database)
+    source = PhotoSource(source_url=source_url, license=license, author=author)
+    try:
+        if wikidata is not None:
+            saved = photos.from_wikidata(person, wikidata)
+        elif file is not None:
+            saved = photos.upload(person, file.read_bytes(), source)
+        else:
+            saved = photos.from_url(person, url or "", source)
+    except LektyraError as err:
+        _fail(err)
+    p = saved.photo
+    if p is None:
+        _fail(LektyraError("internal", "The picture was not saved."))
+    print(f"{saved.name}: picture {p.version} · {p.license or 'licence unknown (local use only)'}")
+    print(f"         from {p.source_url or 'a file'}{f' · by {p.author}' if p.author else ''}")
+    if wikidata is not None and saved.external_ref == wikidata:
+        print(f"         knowledge link {wikidata}")
+
+
+@photo.command("remove")
+def photo_remove(
+    person: Annotated[int, typer.Argument(help="Person id")],
+    database: Database = None,
+) -> None:
+    """Remove a person's picture (the file goes from the picture store too)."""
+    from lektyra.errors import LektyraError
+
+    try:
+        _photos(database).remove(person)
+    except LektyraError as err:
+        _fail(err)
+    print("removed")
+
+
 @app.command()
 def ui(
     port: Annotated[int, typer.Option(help="Port on 127.0.0.1")] = 8765,
@@ -357,6 +486,7 @@ def ui(
     from lektyra.adapters.store.postgres import Store, database_name, ensure_database, with_database
     from lektyra.adapters.web.api import create_app
     from lektyra.app.live import LiveManager, ecapa
+    from lektyra.app.photos import Photos
     from lektyra.app.review import Review
 
     settings = load_settings()
@@ -370,12 +500,14 @@ def ui(
     store = Store(url)
     applied = store.migrate(Path("migrations"))
     print(f"migrated {applied or 'nothing new'}")
-    review = Review(store, settings.data_dir / "events", settings.reviewer)
+    photos = Photos(store, _picture_store(settings), settings.reviewer)
+    review = Review(store, settings.data_dir / "events", settings.reviewer, photos)
     synced = review.sync()
     print(f"synced   {synced.events} videos, {synced.speakers} speakers")
+    _sweep(photos)
     dist = Path("web") / "dist"
     built = (dist / "index.html").exists()
     print(f"ui       http://127.0.0.1:{port}/{'' if built else '  (not built: npm run build in web/)'}")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
     live = LiveManager(settings, store, review, ecapa(settings))
-    uvicorn.run(create_app(review, live, dist), host="127.0.0.1", port=port, log_level="warning")
+    uvicorn.run(create_app(review, live, photos, dist), host="127.0.0.1", port=port, log_level="warning")

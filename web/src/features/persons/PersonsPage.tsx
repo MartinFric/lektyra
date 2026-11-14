@@ -6,6 +6,7 @@ import { Badge, Button, Card, EmptyState, Icon, PageHeader, QueryView, Skeleton,
 import { ReelButton } from '@/features/voices/Reel';
 import { useReel } from '@/features/voices/reelContext';
 import { KIND_LABELS, type Person, personsQuery } from './api';
+import { PersonFace } from './PersonFace';
 import { PersonForm } from './PersonForm';
 import styles from './PersonsPage.module.css';
 
@@ -70,6 +71,7 @@ export function PersonsPage() {
                     person={person}
                     onSaved={(saved) => { open(String(saved.id)); }}
                     onClose={() => { open(null); }}
+                    onMerged={(into) => { open(String(into.id)); }}
                   />
                 );
               }}
@@ -110,9 +112,7 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
           aria-current={selected === String(p.id) || undefined}
           onClick={() => { onSelect(p.id); }}
         >
-          <span className={`${styles.avatar} ${p.anonymous ? styles.numbered : ''}`} aria-hidden="true">
-            {p.anonymous ? `#${String(p.number)}` : initials(p.name)}
-          </span>
+          <PersonFace person={p} className={styles.face} />
           <span className={styles.who}>
             <span className={styles.name}>{p.name}</span>
             <span className={styles.meta}>
@@ -160,13 +160,4 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
       ) : null}
     </div>
   );
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? '')
-    .join('');
 }

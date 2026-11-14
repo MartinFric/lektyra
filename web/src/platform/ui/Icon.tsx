@@ -23,6 +23,9 @@ const PATHS = {
   chevron: 'M9 6l6 6-6 6',
   follow: 'M12 5v14M6 13l6 6 6-6',
   broadcast: 'M12 12h.01M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8',
+  merge: 'M7 4v4a4 4 0 0 0 4 4h7M7 20v-4a4 4 0 0 1 4-4M15 9l3 3-3 3',
+  upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
+  image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;

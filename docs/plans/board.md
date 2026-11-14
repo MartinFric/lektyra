@@ -18,6 +18,7 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
+| K54 | **Scheduled live runs + Live screen rework** (Martin: "schedule run for at least stvr and ta3 streams"): schedule dialog, list of scheduled runs and of transcribed videos; Live offers the real live sources (TA3, STVR, Facebook, YouTube, PC sound) and uploaded videos played as live (kept in MinIO, deletable) instead of files from data/videos | next | 2026-11-14 | needs several sessions at once (K48) for overlapping runs |
 | K26 | **Sunday 15. 11. live run: TA3 V politike 11:00 (`ta3:live`), STVR O 5 minút 12 11:55 (`stvr:1`), Markíza Na telo 13:00 (PC sound, Orange TV)** | next | 2026-11-14 | [runbook](runbook-2026-11-15.md) · TA3 and STVR live sources tested tonight · Martin watches and names |
 | K27 | **Guest profiles in advance** | doing | 2026-11-14 | ready to name in the real DB: Hlina and Takáč (rehearsal), Kuffa (9-min clip, transcribed), Fico (Voice 1, 5 videos), TA3 moderator (Voice 3, 4 videos) · STVR's guests optional (runbook step 3) |
 | K29 | **Live pipeline: claims every minute** | next | 2026-11-14 | voices now + words per piece done (K31) · for Sunday: run `lektyra claims` + `end-pass` on each recorded show right after it (replay = live) |
@@ -43,6 +44,9 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
+| K51 | **A face next to a name: profile pictures** (upload / drop, from Wikidata, skill `profile-pictures` for everyone missing) | done | 2026-11-14 | ADR-015 · lektyra's own MinIO (`pgsty/minio` pinned, login in `~/.secrets/lektyra-minio.env`), Postgres keeps source, licence, author · re-encoded WebP ≤ 512 px, no metadata · forget deletes the file (sweep) · faces in Persons, pickers, speakers, Live · deps: pillow, boto3 |
+| K53 | **A voice renamed in the person form is named in its videos** | done | 2026-11-14 | found by Martin: D1 S2 (Voice 7 → Zuzana Števulová) showed "Unknown voice" · its first speaker becomes confirmed on rename and on every re-match (repairs old data) · UI shows a named founder as named |
+| K52 | **Merge with… on an unnamed voice** (dialog, search persons by name without diacritics) | done | 2026-11-14 | ADR-012 amended · the whole voice moves, defining speakers become names, matched ones stay guesses, lower number kept |
 | K31 | **UI: Live screen** | done | 2026-11-14 | ADR-013 · walked on the full V politike Hlina–Takáč episode (YouTube, 720p): moderator recognised as Voice 3 (0.79) from older videos, Takáč as Voice 9 (0.88) from the D2 press conference, Hlina founded Voice 17, named during play, words every piece, 5:53 for $0.023 · player 1 s from lektyra |
 | K28 | **PC sound as a source (`pc:sound[:device]`): Orange TV / Markíza in the browser** | done | 2026-11-14 | ADR-013 §7 · WASAPI loopback (soundcard) → 48→16 kHz low-pass decimator (4 tests) · tested: Takáč recognised through the speakers at 0.83, words transcribed · no DRM circumvention · legal question in K40 |
 | K49 | **Hear a voice: ▶ plays its clearest passages** (Persons: across videos, newest first; a video's speakers: in that video) | done | 2026-11-14 | longest turns trimmed, ≤ 12 s, up to 6 · one reel at a time, media fragments, no effects · fixed while walking: a clip's end reported twice skipped the next clip; a fragment stops a few ms short of its end |

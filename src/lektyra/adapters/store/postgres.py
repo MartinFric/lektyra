@@ -41,6 +41,24 @@ class PersonFields(BaseModel):
     external_ref: str | None = None
 
 
+class PhotoSource(BaseModel):
+    """Where a picture came from (ADR-015). All empty: a file Martin uploaded."""
+
+    source_url: str | None = None
+    license: str | None = None
+    author: str | None = None
+
+
+class PhotoInfo(PhotoSource):
+    version: str  # the picture's URL carries it, so a new picture is a new URL
+
+
+class PhotoRow(BaseModel):
+    object_key: str
+    content_type: str
+    version: str
+
+
 class PersonRow(BaseModel):
     id: int
     key: str
@@ -55,6 +73,7 @@ class PersonRow(BaseModel):
     note: str | None
     samples: int
     events: int
+    photo: PhotoInfo | None = None
 
 
 class SpeakerRow(BaseModel):
@@ -113,6 +132,20 @@ class VoiceRow(BaseModel):
 
 def vector(values: Sequence[float]) -> str:
     return "[" + ",".join(f"{v:.6f}" for v in values) + "]"
+
+
+def _person(row: Row) -> PersonRow:
+    photo = (
+        PhotoInfo(
+            version=row["photo_version"],
+            source_url=row["photo_source_url"],
+            license=row["photo_license"],
+            author=row["photo_author"],
+        )
+        if row["photo_version"]
+        else None
+    )
+    return PersonRow.model_validate({**row, "photo": photo})
 
 
 def parse_vector(text: object) -> list[float]:
@@ -296,10 +329,13 @@ class Store:
                 """SELECT p.id, p.key::text AS key, p.number, p.name, p.anonymous, p.kind, p.external_ref,
                           p.function, p.party, p.public_figure, p.note,
                           (SELECT count(*) FROM voice_sample v WHERE v.person_id = p.id) AS samples,
-                          (SELECT count(DISTINCT s.event_id) FROM event_speaker s WHERE s.person_id = p.id) AS events
-                   FROM person p ORDER BY p.anonymous, CASE WHEN p.anonymous THEN p.number END, p.name"""
+                          (SELECT count(DISTINCT s.event_id) FROM event_speaker s WHERE s.person_id = p.id) AS events,
+                          ph.version AS photo_version, ph.source_url AS photo_source_url,
+                          ph.license AS photo_license, ph.author AS photo_author
+                   FROM person p LEFT JOIN person_photo ph ON ph.person_id = p.id
+                   ORDER BY p.anonymous, CASE WHEN p.anonymous THEN p.number END, p.name"""
             )
-            return [PersonRow.model_validate(r) for r in cur.fetchall()]
+            return [_person(r) for r in cur.fetchall()]
 
     def person(self, person_id: int) -> PersonRow:
         found = [p for p in self.persons() if p.id == person_id]
@@ -362,6 +398,72 @@ class Store:
                 raise LektyraError("not_found", f"No person with id {person_id}.")
             cur.execute(
                 "INSERT INTO audit_log (actor, action, subject, detail) VALUES (%s, 'forget', %s, '{}')",
+                (actor, str(person_id)),
+            )
+
+    # pictures (ADR-015) -----------------------------------------------------------------------------------------
+    def photo(self, person_id: int) -> PhotoRow:
+        with self._tx() as cur:
+            cur.execute("SELECT object_key, content_type, version FROM person_photo WHERE person_id = %s", (person_id,))
+            row = cur.fetchone()
+        if row is None:
+            raise LektyraError("not_found", "This person has no picture.")
+        return PhotoRow.model_validate(row)
+
+    def photo_keys(self) -> set[str]:
+        """Every object a person points at: anything else in the bucket is left over and may go."""
+        with self._tx() as cur:
+            cur.execute("SELECT object_key FROM person_photo")
+            return {str(r["object_key"]) for r in cur.fetchall()}
+
+    def save_photo(
+        self,
+        person_id: int,
+        object_key: str,
+        size: tuple[int, int],
+        version: str,
+        content_type: str,
+        source: PhotoSource,
+        actor: str,
+    ) -> None:
+        """One picture per person: a new one replaces the old row. The audit says where it came from."""
+        with self._tx() as cur:
+            cur.execute(
+                """INSERT INTO person_photo (person_id, object_key, content_type, width, height, version, source_url,
+                                             license, author, added_by)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (person_id) DO UPDATE SET object_key = EXCLUDED.object_key,
+                       content_type = EXCLUDED.content_type,
+                       width = EXCLUDED.width, height = EXCLUDED.height, version = EXCLUDED.version,
+                       source_url = EXCLUDED.source_url, license = EXCLUDED.license, author = EXCLUDED.author,
+                       added_by = EXCLUDED.added_by, added_at = now()""",
+                (
+                    person_id,
+                    object_key,
+                    content_type,
+                    size[0],
+                    size[1],
+                    version,
+                    source.source_url,
+                    source.license,
+                    source.author,
+                    actor,
+                ),
+            )
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'photo', %s, jsonb_build_object('source', %s::text, 'license', %s::text))""",
+                (actor, str(person_id), source.source_url or "upload", source.license),
+            )
+
+    def delete_photo(self, person_id: int, actor: str) -> None:
+        with self._tx() as cur:
+            cur.execute("DELETE FROM person_photo WHERE person_id = %s RETURNING person_id", (person_id,))
+            if cur.fetchone() is None:
+                raise LektyraError("not_found", "This person has no picture.")
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'photo', %s, '{"removed": true}')""",
                 (actor, str(person_id)),
             )
 
@@ -444,6 +546,11 @@ class Store:
                    SELECT event_speaker_id, %s, created_by, created_at FROM voice_rejection WHERE person_id = %s
                    ON CONFLICT DO NOTHING""",
                 (target_id, source_id),
+            )
+            cur.execute(  # a picture follows the person, unless the target has its own
+                """UPDATE person_photo SET person_id = %s
+                   WHERE person_id = %s AND NOT EXISTS (SELECT 1 FROM person_photo WHERE person_id = %s)""",
+                (target_id, source_id, target_id),
             )
             cur.execute("DELETE FROM person WHERE id = %s", (source_id,))
             cur.execute("UPDATE person SET number = least(number, %s) WHERE id = %s", (source.number, target_id))

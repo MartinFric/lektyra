@@ -1,22 +1,28 @@
 """The review API end to end on a throwaway database (lektyra_test) and synthetic voices: naming teaches a voice,
-other videos are matched again, "not this person" sticks, forgetting deletes, and every error has one shape.
-No real audio or voice is used (ADR-005). Needs the local Postgres: `docker compose up -d`."""
+other videos are matched again, "not this person" sticks, a voice merges into a person, pictures, forgetting
+deletes, and every error has one shape. No real audio, voice or face is used (ADR-005). Needs the local Postgres:
+`docker compose up -d`. Pictures go to an object store in memory; Wikidata answers are canned."""
 
 import json
 from collections.abc import Callable, Iterator
 from datetime import UTC, datetime
+from io import BytesIO
 from pathlib import Path
 
 import numpy as np
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
+from lektyra.adapters.knowledge.wikimedia import Wikimedia
 from lektyra.adapters.store.postgres import VOICE_LOCK, Store, ensure_database, with_database
 from lektyra.adapters.web.api import create_app
 from lektyra.app.live import LiveManager
-from lektyra.app.review import Review
+from lektyra.app.photos import Photos
+from lektyra.app.review import Person, Review
 from lektyra.settings import Settings, load_settings
+from tests.fakes import MemoryObjects
 
 pytestmark = pytest.mark.slow
 
@@ -24,6 +30,32 @@ ROOT = Path(__file__).resolve().parents[2]
 DIM = 16
 ONE, TWO, THREE = "2026-01-01_10-00-00_one", "2026-01-02_10-00-00_two", "2026-01-03_10-00-00_three"
 VARIANT = "elevenlabs__scribe-v2@sk"
+OBJECTS = MemoryObjects()
+COMMONS_PAGE = "https://commons.wikimedia.org/wiki/File:Delta_Person.jpg"
+
+
+def _picture(color: tuple[int, int, int] = (200, 30, 30)) -> bytes:
+    out = BytesIO()
+    Image.new("RGB", (900, 1200), color).save(out, "PNG")
+    return out.getvalue()
+
+
+def _wikimedia(url: str) -> bytes:
+    """Wikidata says Q4242 has a picture on Commons; Commons gives its licence, author and a thumbnail."""
+    if "action=wbgetentities" in url:
+        p18 = [{"mainsnak": {"datavalue": {"value": "Delta Person.jpg"}}}]
+        return json.dumps({"entities": {"Q4242": {"id": "Q4242", "claims": {"P18": p18}}}}).encode()
+    if url.startswith("https://commons.wikimedia.org/w/api.php"):
+        info = {
+            "url": "https://upload.example.test/delta.jpg",
+            "thumburl": "https://upload.example.test/640px-delta.jpg",
+            "descriptionurl": COMMONS_PAGE,
+            "extmetadata": {"LicenseShortName": {"value": "CC BY 4.0"}, "Artist": {"value": "Jane Doe"}},
+        }
+        return json.dumps({"query": {"pages": {"1": {"title": "File:Delta Person.jpg", "imageinfo": [info]}}}}).encode()
+    if url == "https://upload.example.test/640px-delta.jpg":
+        return _picture((0, 90, 200))
+    raise AssertionError(f"unexpected request {url}")
 
 
 def _event(folder: Path, voices: list[np.ndarray], rng: np.random.Generator) -> None:
@@ -76,13 +108,14 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     store = Store(url)
     store.migrate(ROOT / "migrations")
     data = events.parent
-    review = Review(store, events, "test")
+    photos = Photos(store, OBJECTS, "test", Wikimedia(_wikimedia))
+    review = Review(store, events, "test", photos)
 
     def no_embedder() -> tuple[Callable[[list[np.ndarray]], np.ndarray], str]:
         raise AssertionError("no live session runs in these tests")
 
     live = LiveManager(Settings(data_dir=data), store, review, no_embedder)
-    with TestClient(create_app(review, live, None)) as test_client:
+    with TestClient(create_app(review, live, photos, None)) as test_client:
         yield test_client
     store.close()
 
@@ -104,6 +137,10 @@ def _error(answer: object) -> dict[str, object]:
 
 def _number(speaker: dict[str, object]) -> object:
     return speaker["person_number"]
+
+
+def _person(client: TestClient, name: str) -> Person:
+    return next(Person.model_validate(p) for p in client.get("/api/persons").json() if p["name"] == name)
 
 
 def test_every_voice_gets_a_number_that_continues_across_videos(client: TestClient) -> None:
@@ -272,3 +309,97 @@ def test_voices_are_written_by_one_process_at_a_time(client: TestClient) -> None
         assert other.execute("SELECT pg_try_advisory_lock(%s)", (VOICE_LOCK,)).fetchone() == (True,)
         other.execute("SELECT pg_advisory_unlock(%s)", (VOICE_LOCK,))
     first.close()
+
+
+def test_an_unnamed_voice_merges_into_a_named_person_in_every_video(client: TestClient) -> None:
+    voice = _person(client, "Voice 3")
+    gamma = client.post("/api/persons", json={"name": "Gamma Person", "kind": "politician"}).json()
+    assert gamma["number"] > voice.number
+    answer = client.post(f"/api/persons/{voice.id}/merge", json={"into": gamma["id"]})
+    assert answer.status_code == 200
+    merged = Person.model_validate(answer.json())
+    assert (merged.id, merged.name, merged.number, merged.anonymous, merged.events) == (
+        gamma["id"],
+        "Gamma Person",
+        voice.number,  # the older number stays
+        False,
+        1,
+    )
+    assert merged.samples > 0
+    founder = _speakers(client, THREE)["S1"]
+    assert (founder["status"], founder["person_name"]) == ("confirmed", "Gamma Person")  # Martin's word, not a guess
+    assert "Voice 3" not in {p["name"] for p in client.get("/api/persons").json()}
+
+
+def test_only_an_unnamed_voice_merges_and_only_into_a_named_person(client: TestClient) -> None:
+    voice, gamma = _person(client, "Voice 2"), _person(client, "Gamma Person")
+    for source, into, status in ((voice.id, voice.id, 409), (gamma.id, voice.id, 409), (voice.id, 999_999, 404)):
+        answer = client.post(f"/api/persons/{source}/merge", json={"into": into})
+        assert answer.status_code == status
+        assert _error(answer)["code"] == ("conflict" if status == 409 else "not_found")
+    assert _person(client, "Voice 2").samples == voice.samples  # nothing moved
+
+
+def test_a_named_person_gets_a_picture_lektyra_made_itself(client: TestClient) -> None:
+    gamma = _person(client, "Gamma Person")
+    url = f"/api/persons/{gamma.id}/photo"
+    first = client.put(url, content=_picture(), headers={"content-type": "image/png"})
+    assert first.status_code == 200
+    photo = first.json()["photo"]
+    assert (photo["source_url"], photo["license"], len(photo["version"])) == (None, None, 16)
+    served = client.get(f"{url}?v={photo['version']}")
+    assert (served.headers["content-type"], served.headers["x-content-type-options"]) == ("image/webp", "nosniff")
+    assert Image.open(BytesIO(served.content)).size == (384, 512)
+    second = client.put(url, content=_picture((0, 0, 200)), headers={"content-type": "image/png"}).json()["photo"]
+    assert second["version"] != photo["version"]
+    assert OBJECTS.keys("persons/") == [f"persons/{gamma.key}/{second['version']}.webp"]  # the old file is gone
+    assert client.delete(url).status_code == 204
+    assert _person(client, "Gamma Person").photo is None
+    assert OBJECTS.keys("persons/") == []
+    assert client.get(url).status_code == 404
+
+
+def test_pictures_refuse_what_is_not_a_picture_or_has_no_name(client: TestClient) -> None:
+    voice, gamma = _person(client, "Voice 2"), _person(client, "Gamma Person")
+    png = {"content-type": "image/png"}
+    for path, body, headers, status in (
+        (f"/api/persons/{voice.id}/photo", _picture(), png, 409),  # name the voice first
+        (f"/api/persons/{gamma.id}/photo", b"%PDF-1.7", png, 422),
+        (f"/api/persons/{gamma.id}/photo", b"hello", {"content-type": "text/plain"}, 422),
+        ("/api/persons/999999/photo", _picture(), png, 404),
+    ):
+        answer = client.put(path, content=body, headers=headers)
+        assert answer.status_code == status
+        assert _error(answer)["code"] in ("conflict", "invalid", "not_found")
+    assert OBJECTS.keys("persons/") == []
+
+
+def test_a_picture_from_wikidata_keeps_its_licence_and_author(client: TestClient) -> None:
+    delta = client.post("/api/persons", json={"name": "Delta Person", "external_ref": "Q4242"}).json()
+    answer = client.post(f"/api/persons/{delta['id']}/photo/wikidata")
+    assert answer.status_code == 200
+    photo = answer.json()["photo"]
+    assert (photo["license"], photo["author"], photo["source_url"]) == ("CC BY 4.0", "Jane Doe", COMMONS_PAGE)
+    no_link = client.post(f"/api/persons/{_person(client, 'Gamma Person').id}/photo/wikidata")
+    assert (no_link.status_code, _error(no_link)["code"]) == (422, "invalid")
+
+
+def test_forgetting_a_person_deletes_their_picture(client: TestClient) -> None:
+    delta = _person(client, "Delta Person")
+    assert len(OBJECTS.keys("persons/")) == 1
+    assert client.delete(f"/api/persons/{delta.id}").status_code == 204
+    assert OBJECTS.keys("persons/") == []  # the file in the picture store
+    with psycopg.connect(with_database(load_settings().database_url, "lektyra_test")) as db:
+        assert db.execute("SELECT count(*) FROM person_photo").fetchone() == (0,)  # and its row
+
+
+def test_renaming_a_voice_in_the_form_names_the_speaker_it_was_first_heard_in(client: TestClient) -> None:
+    # 2026-11-14: Voice 7 renamed "Zuzana Števulová" in the form; its first speaker still showed "Unknown voice".
+    voice = _person(client, "Voice 2")
+    founder = next(s for s in _speakers(client, ONE).values() if s["person_id"] == voice.id)
+    assert founder["status"] == "new"
+    renamed = client.put(f"/api/persons/{voice.id}", json={"name": "Epsilon Person", "kind": "politician"})
+    assert renamed.status_code == 200
+    assert (renamed.json()["anonymous"], renamed.json()["number"]) == (False, voice.number)
+    after = _speakers(client, ONE)[str(founder["label"])]
+    assert (after["status"], after["person_name"]) == ("confirmed", "Epsilon Person")
