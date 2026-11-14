@@ -1,0 +1,23 @@
+# Local Postgres 17 + pgvector for the spike (ADR-005: local only, bound to 127.0.0.1).
+# Trust auth because the port is reachable only from this PC; there is no password to leak into the repo.
+# migrations/*.sql run once, when the volume is created; later migrations get a runner (board K11).
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: lektyra-db
+    environment:
+      POSTGRES_USER: lektyra
+      POSTGRES_DB: lektyra
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - lektyra-db:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lektyra -d lektyra"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  lektyra-db: {}

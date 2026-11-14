@@ -1,0 +1,407 @@
+<title>lektyra Voice Matching</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of six numbered steps (a real pipeline, in order); diagrams break out to the column's full width. */
+:root {
+  --bg: #f5f7fa; --surface: #ffffff; --fg: #17212b; --muted: #5a6674; --line: #dbe1e8;
+  --accent: #0d7f74; --accent-soft: #e2f3f0; --heat: #1f5fae; --warn: #b26b00;
+  --p1: #d55e00; --p2: #0072b2; --p3: #b8508f; --grey: #9aa5b1;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f141a; --surface: #161d25; --fg: #e5eaf0; --muted: #9aa6b3; --line: #2a3441;
+  --accent: #3cc2b2; --accent-soft: #15302d; --heat: #5aa2ec; --warn: #f0a640;
+  --p1: #ff8a4c; --p2: #5aa9e6; --p3: #e39bc6; --grey: #6c7886; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f141a; --surface: #161d25; --fg: #e5eaf0; --muted: #9aa6b3; --line: #2a3441;
+  --accent: #3cc2b2; --accent-soft: #15302d; --heat: #5aa2ec; --warn: #f0a640;
+  --p1: #ff8a4c; --p2: #5aa9e6; --p3: #e39bc6; --grey: #6c7886; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.6 var(--font-body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 56px; }
+header { display: grid; gap: 10px; }
+.kicker { font: 600 12px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(30px, 5vw, 44px)/1.1 var(--font-display); margin: 0; text-wrap: balance; }
+h2 { font: 600 24px/1.25 var(--font-display); margin: 0; text-wrap: balance; display: flex; gap: 12px; align-items: baseline; }
+h2 .n { font: 500 14px/1 var(--font-mono); color: var(--accent); min-width: 2ch; }
+p { margin: 0; max-width: 66ch; }
+.lead { font-size: 18px; color: var(--muted); }
+section { display: grid; gap: 16px; min-width: 0; }
+.figure { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-x: auto; min-width: 0; }
+.figure svg { display: block; width: 100%; height: auto; }
+.cap { font-size: 13px; color: var(--muted); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.fact { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 2px; }
+.fact b { font: 600 20px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+.fact span { font-size: 13px; color: var(--muted); }
+.note { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 6px 6px 0; max-width: 70ch; }
+code, pre { font-family: var(--font-mono); font-size: 13.5px; }
+pre { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0; line-height: 1.55; }
+.k { color: var(--accent); } .c { color: var(--muted); }
+.t-text { fill: var(--fg); font: 13px var(--font-body); }
+.t-mono { fill: var(--fg); font: 12px var(--font-mono); }
+.t-muted { fill: var(--muted); font: 12px var(--font-body); }
+/* heatmap */
+table.heat { border-collapse: separate; border-spacing: 2px; font: 12px var(--font-mono); font-variant-numeric: tabular-nums; margin: 0 auto; }
+table.heat th { font-weight: 500; color: var(--muted); padding: 2px 4px; white-space: nowrap; }
+table.heat th.row { text-align: right; }
+table.heat td { width: 40px; height: 30px; text-align: center; border-radius: 4px; color: var(--fg); }
+table.heat td.self { color: var(--muted); background: transparent; border: 1px dashed var(--line); }
+table.heat td.hot { color: #fff; font-weight: 600; outline: 2px solid var(--fg); outline-offset: -2px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); align-items: center; }
+.sw { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+/* playground */
+.play { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 680px) { .play { grid-template-columns: 1fr; } }
+.panel { display: grid; gap: 12px; min-width: 0; }
+.verdict { border-radius: 8px; padding: 12px 14px; border: 1px solid var(--line); display: grid; gap: 4px; }
+.verdict .big { font: 600 18px/1.3 var(--font-display); }
+.verdict.auto { border-color: var(--accent); background: var(--accent-soft); }
+.verdict.sugg { border-color: var(--warn); }
+.verdict.unk { border-color: var(--grey); }
+ol.nn { margin: 0; padding-left: 20px; font: 13px/1.7 var(--font-mono); font-variant-numeric: tabular-nums; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+button, select { font: 500 14px var(--font-body); border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); padding: 7px 12px; cursor: pointer; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+label { font-size: 13px; color: var(--muted); }
+#ring { touch-action: none; cursor: grab; }
+@media (prefers-reduced-motion: no-preference) { .q { transition: transform .08s linear; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="kicker">lektyra · how voices are matched</div>
+    <h1>From two seconds of speech to “that is the same voice”</h1>
+    <p class="lead">No transcription model and no LLM decides who is speaking. A small local network turns the voice
+      into numbers, and plain arithmetic in lektyra's own code compares them. Here is every step, with the real numbers
+      from the five test videos.</p>
+  </header>
+
+  <section>
+    <h2><span class="n">1</span>A voice becomes 192 numbers</h2>
+    <p>Every 2 seconds of speech (a new window every second) go through <b>SpeechBrain ECAPA</b>, an open-source
+      speaker-recognition network trained on thousands of voices. It does not understand words. It measures how a
+      voice sounds (pitch range, timbre, resonance) and writes that down as 192 numbers: a <i>voice fingerprint</i>.
+      The same person gives similar numbers in any language and any sentence.</p>
+    <div class="figure"><svg id="pipe" viewBox="0 0 820 170" role="img" aria-label="Two seconds of waveform go into the ECAPA network, which outputs a strip of 192 numbers"></svg></div>
+    <div class="facts">
+      <div class="fact"><b>20.8 M</b><span>parameters (an 83 MB file in data/models)</span></div>
+      <div class="fact"><b>CPU only</b><span>torch without CUDA; nothing is sent anywhere</span></div>
+      <div class="fact"><b>≈ 40 s</b><span>for a whole 57-minute video on this PC</span></div>
+      <div class="fact"><b>≈ 85×</b><span>faster than real time; live needs 1×</span></div>
+    </div>
+    <p class="note">A GPU is not needed. Even a small 4-core server would stay far ahead of a live stream (estimate);
+      a GPU only matters for many streams at once.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">2</span>Similarity is an angle</h2>
+    <p>Think of each fingerprint as an arrow from the origin. lektyra makes every arrow the same length, so only its
+      <b>direction</b> carries the voice. Two arrows of the same voice point almost the same way; a different voice
+      points elsewhere. The measure is the cosine of the angle between them: 1 means the same direction, 0 means
+      unrelated. Computing it is one multiplication per number and a sum: 192 multiplications.</p>
+    <div class="figure"><svg id="angle" viewBox="0 0 820 260" role="img" aria-label="Three arrows from one origin: two close together with cosine 0.91, one far away with cosine 0.30"></svg></div>
+    <p class="cap">Drawn in 2 dimensions; the real arrows have 192, but the angle works the same way.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">3</span>One video: grouping the windows into speakers</h2>
+    <p>A 57-minute debate gives about 3,200 fingerprints. lektyra groups them: the two closest groups merge, again
+      and again, until the closest two are further apart than a set distance (0.55). What is left are the speakers of
+      that video, S1, S2, S3, numbered by how much they talk. Groups with under 1 % of the speech become “unclear”
+      instead of a speaker. Each speaker's average arrow is its <b>centroid</b>.</p>
+    <div class="figure"><svg id="clusters" viewBox="0 0 820 300" role="img" aria-label="A scatter of points in three coloured groups with a few grey unclear points and a star marking each group's centre"></svg></div>
+    <p class="cap">A sketch of the idea, not real fingerprints. On video A this gave S1 50 %, S2 37 %, S3 11 %, plus two
+      brief voices.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">4</span>Across videos: the real numbers</h2>
+    <p>Comparing every speaker's centroid with every other one gives this table. These are the real cosine
+      similarities between the main voices of the five videos (labels are voices, not names).</p>
+    <div class="figure"><div id="heatwrap"></div></div>
+    <div class="legend">
+      <span><span class="sw" id="sw-lo"></span>0.0</span>
+      <span><span class="sw" id="sw-mid"></span>0.5</span>
+      <span><span class="sw" id="sw-hi"></span>1.0</span>
+      <span>outlined: ≥ 0.70, the same voice</span>
+    </div>
+    <p>One voice is in all five videos (A.S1, B.S2, C.S1, D1.S1, D2.S1) at <b>0.80–0.92</b>: studio 2022, 2023 and
+      2025, the parliament hall and a press room. A.S2 and B.S1 are the second voice of both duels (0.92). A.S3 and
+      C.S2 are the same moderator (0.87). Every pair of <i>different</i> voices stays at <b>0.47 or below</b>. The gap
+      between 0.47 and 0.80 is what makes a safe threshold possible.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">5</span>Profiles: matching a new voice (try it)</h2>
+    <p>A profile is simply the stored, confirmed fingerprints of a named person, often from different rooms. A new
+      voice is compared with <b>all</b> of them, the 5 nearest are taken, they vote, and the result is checked against
+      two thresholds. Drag the dot round the circle (or use the slider). Then confirm it as a person: the profile gains
+      a sample, and the next nearby voice matches.</p>
+    <div class="play">
+      <div class="figure"><svg id="ring" viewBox="0 0 400 400" role="img" aria-label="Stored voice samples of three persons on a circle and a draggable new voice"></svg></div>
+      <div class="panel">
+        <label for="ang">Direction of the new voice</label>
+        <input id="ang" type="range" min="0" max="359" value="40">
+        <div id="verdict" class="verdict"></div>
+        <div><label>The 5 nearest stored samples</label><ol id="nn" class="nn"></ol></div>
+        <div class="controls">
+          <select id="who" aria-label="Person to confirm"></select>
+          <button id="confirm" class="primary">Confirm as this person</button>
+          <button id="reset">Reset</button>
+        </div>
+        <p class="cap">Thresholds from the voices report: ≥ 0.70 named automatically (still shown to a human),
+          0.55–0.70 suggested, below 0.55 unknown. A wrong name is worse than “unknown”.</p>
+      </div>
+    </div>
+    <p>Person 1 has two clusters: studio and parliament hall. That is why lektyra keeps all samples instead of one
+      average per person: a new hall recording finds the hall samples. When a human names an “unknown”, its
+      fingerprints become new samples and the profile is rebuilt from them. Nothing else changes.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">6</span>pgvector: the database that finds the nearest voices</h2>
+    <p><b>pgvector</b> is an extension for PostgreSQL (lektyra's local database has version 0.8.6). It adds a column
+      type that holds a fingerprint, and operators that measure the distance between two of them. Finding the nearest
+      samples is then an ordinary query: sort by distance, take the first k.</p>
+<pre><span class="c">-- one row per confirmed 2 s sample of a person</span>
+<span class="k">CREATE TABLE</span> voice_sample (person_id bigint, embedding vector, embedding_model text, …);
+
+<span class="c">-- the 5 stored samples nearest to a new fingerprint $1</span>
+<span class="k">SELECT</span> person_id, 1 - (embedding <span class="k">&lt;=&gt;</span> $1) <span class="k">AS</span> similarity
+<span class="k">FROM</span>   voice_sample
+<span class="k">WHERE</span>  embedding_model = 'ecapa-voxceleb'
+<span class="k">ORDER BY</span> embedding <span class="k">&lt;=&gt;</span> $1      <span class="c">-- &lt;=&gt; is cosine distance = 1 - similarity</span>
+<span class="k">LIMIT</span>  5;</pre>
+    <p>Without an index the database simply measures the distance to every row. For lektyra's scale (thousands of
+      samples) that takes milliseconds. With millions of rows, an <b>HNSW index</b> makes it fast: the samples are
+      linked into a graph with a few layers, like a road map with motorways, main roads and streets. The search starts
+      at the top, always jumps to the neighbour closest to the target, drops a layer when no neighbour is closer, and
+      ends among the nearest samples at the bottom. It checks a few dozen points instead of all of them. It is
+      approximate, so it can occasionally miss the very nearest one, which a vote over 5 neighbours tolerates.</p>
+    <div class="figure"><svg id="hnsw" viewBox="0 0 820 330" role="img" aria-label="Three layers of a graph; a highlighted path starts at the top layer, hops toward the target and drops down to the nearest point at the bottom layer"></svg></div>
+<pre><span class="c">-- only when the table grows large</span>
+<span class="k">CREATE INDEX</span> <span class="k">ON</span> voice_sample <span class="k">USING</span> hnsw ((embedding::vector(192)) vector_cosine_ops)
+  <span class="k">WHERE</span> embedding_model = 'ecapa-voxceleb';</pre>
+    <p class="note">Today, comparing the 15 speakers of the five videos runs in memory in lektyra's code (step 4).
+      pgvector takes over with the profiles, once speakers have names and their samples are stored.</p>
+  </section>
+</div>
+
+<script>
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text) {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text !== undefined) n.textContent = text;
+  if (parent) parent.appendChild(n);
+  return n;
+}
+function rng(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
+
+/* 1 · pipeline */
+(function pipeline() {
+  const svg = document.getElementById("pipe"), r = rng(7);
+  let d = "M 10 85";
+  for (let x = 10; x <= 230; x += 2) {
+    const env = Math.sin((x - 10) / 220 * Math.PI) * (0.6 + 0.4 * Math.sin(x / 13));
+    d += ` L ${x} ${85 + (r() - 0.5) * 110 * env}`;
+  }
+  el("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 1.5 }, svg);
+  el("text", { x: 120, y: 160, "text-anchor": "middle", class: "t-muted" }, svg, "2 s of speech (32,000 samples)");
+  el("path", { d: "M 250 85 L 300 85 M 290 78 L 300 85 L 290 92", fill: "none", stroke: "var(--muted)", "stroke-width": 2 }, svg);
+  el("rect", { x: 312, y: 45, width: 150, height: 80, rx: 8, fill: "var(--accent-soft)", stroke: "var(--accent)" }, svg);
+  el("text", { x: 387, y: 82, "text-anchor": "middle", class: "t-text", "font-weight": 600 }, svg, "ECAPA network");
+  el("text", { x: 387, y: 102, "text-anchor": "middle", class: "t-muted" }, svg, "local · CPU");
+  el("path", { d: "M 474 85 L 524 85 M 514 78 L 524 85 L 514 92", fill: "none", stroke: "var(--muted)", "stroke-width": 2 }, svg);
+  const r2 = rng(42);
+  for (let i = 0; i < 192; i++) {
+    const v = r2() * 2 - 1, h = Math.abs(v) * 40;
+    el("rect", { x: 536 + i * 1.4, y: v > 0 ? 85 - h : 85, width: 1, height: Math.max(1, h), fill: v > 0 ? "var(--heat)" : "var(--p1)" }, svg);
+  }
+  el("line", { x1: 536, y1: 85, x2: 806, y2: 85, stroke: "var(--line)" }, svg);
+  el("text", { x: 671, y: 160, "text-anchor": "middle", class: "t-muted" }, svg, "192 numbers: the voice fingerprint");
+})();
+
+/* 2 · angle */
+(function angle() {
+  const svg = document.getElementById("angle"), ox = 110, oy = 220, L = 190;
+  const arrow = (deg, color, label, dy) => {
+    const a = deg * Math.PI / 180, x = ox + L * Math.cos(a), y = oy - L * Math.sin(a);
+    el("line", { x1: ox, y1: oy, x2: x, y2: y, stroke: color, "stroke-width": 3, "stroke-linecap": "round" }, svg);
+    el("circle", { cx: x, cy: y, r: 5, fill: color }, svg);
+    el("text", { x: x + 10, y: y + dy, class: "t-text" }, svg, label);
+  };
+  const arc = (from, to, rad, text) => {
+    const a1 = from * Math.PI / 180, a2 = to * Math.PI / 180;
+    el("path", { d: `M ${ox + rad * Math.cos(a1)} ${oy - rad * Math.sin(a1)} A ${rad} ${rad} 0 0 0 ${ox + rad * Math.cos(a2)} ${oy - rad * Math.sin(a2)}`, fill: "none", stroke: "var(--muted)", "stroke-dasharray": "3 3" }, svg);
+    const m = (from + to) / 2 * Math.PI / 180;
+    el("text", { x: ox + (rad + 8) * Math.cos(m), y: oy - (rad + 8) * Math.sin(m), class: "t-mono" }, svg, text);
+  };
+  el("circle", { cx: ox, cy: oy, r: 4, fill: "var(--fg)" }, svg);
+  arrow(20, "var(--p2)", "voice X, studio 2023", 4);
+  arrow(44, "var(--p2)", "voice X, parliament 2025", 0);
+  arrow(92, "var(--p1)", "voice Y", -6);
+  arc(20, 44, 70, "24° → 0.91");
+  arc(44, 92, 120, "48° … ");
+  el("text", { x: 470, y: 70, class: "t-text", "font-weight": 600 }, svg, "cosine similarity");
+  el("text", { x: 470, y: 96, class: "t-mono" }, svg, "same voice:      0.91");
+  el("text", { x: 470, y: 118, class: "t-mono" }, svg, "X vs Y (72°):    0.30");
+  el("text", { x: 470, y: 150, class: "t-muted" }, svg, "1.0 = identical direction");
+  el("text", { x: 470, y: 170, class: "t-muted" }, svg, "0.0 = unrelated (90°)");
+  el("text", { x: 470, y: 205, class: "t-muted" }, svg, "for unit arrows: sum of a·b over all 192 numbers");
+})();
+
+/* 3 · clusters */
+(function clusters() {
+  const svg = document.getElementById("clusters"), r = rng(3);
+  const g = () => { let s = 0; for (let i = 0; i < 6; i++) s += r(); return s - 3; };
+  const groups = [
+    { x: 200, y: 140, n: 70, c: "var(--p2)", name: "S1 · 50 %" },
+    { x: 470, y: 110, n: 52, c: "var(--p1)", name: "S2 · 37 %" },
+    { x: 650, y: 210, n: 16, c: "var(--p3)", name: "S3 · 11 %" },
+  ];
+  for (const k of groups) for (let i = 0; i < k.n; i++)
+    el("circle", { cx: k.x + g() * 34, cy: k.y + g() * 26, r: 3.2, fill: k.c, "fill-opacity": 0.75 }, svg);
+  for (let i = 0; i < 9; i++) el("circle", { cx: 60 + r() * 700, cy: 30 + r() * 250, r: 3.2, fill: "var(--grey)" }, svg);
+  for (const k of groups) {
+    el("path", { d: `M ${k.x} ${k.y - 10} L ${k.x + 3} ${k.y - 3} L ${k.x + 10} ${k.y - 3} L ${k.x + 4} ${k.y + 2} L ${k.x + 6} ${k.y + 9} L ${k.x} ${k.y + 5} L ${k.x - 6} ${k.y + 9} L ${k.x - 4} ${k.y + 2} L ${k.x - 10} ${k.y - 3} L ${k.x - 3} ${k.y - 3} Z`, fill: "var(--surface)", stroke: "var(--fg)", "stroke-width": 1.5 }, svg);
+    el("text", { x: k.x, y: k.y + 82 > 290 ? k.y - 60 : k.y + 82, "text-anchor": "middle", class: "t-text", "font-weight": 600 }, svg, k.name);
+  }
+  el("text", { x: 60, y: 290, class: "t-muted" }, svg, "grey: unclear (cross-talk, jingles) · star: centroid");
+})();
+
+/* 4 · heatmap (real numbers) */
+(function heat() {
+  const L = ["A.S1","A.S2","A.S3","B.S1","B.S2","B.S3","C.S1","C.S2","D1.S1","D1.S2","D1.S3","D2.S1","D2.S2","D2.S3","D2.S4"];
+  const S = [[1,.27,.02,.25,.92,.23,.85,.07,.83,.08,.36,.86,.35,.29,.24],[.27,1,.13,.92,.31,.3,.2,.13,.21,.14,.2,.24,.33,.21,.18],[.02,.13,1,.06,.07,.46,.08,.87,.07,.15,.17,.07,.17,.27,.08],[.25,.92,.06,1,.31,.3,.18,.1,.22,.12,.23,.24,.32,.17,.17],[.92,.31,.07,.31,1,.25,.8,.08,.81,.1,.38,.83,.41,.33,.28],[.23,.3,.46,.3,.25,1,.24,.47,.18,.14,.21,.25,.21,.22,.17],[.85,.2,.08,.18,.8,.24,1,.11,.86,.06,.36,.92,.36,.31,.19],[.07,.13,.87,.1,.08,.47,.11,1,.09,.09,.18,.07,.17,.19,.08],[.83,.21,.07,.22,.81,.18,.86,.09,1,.07,.42,.91,.32,.28,.19],[.08,.14,.15,.12,.1,.14,.06,.09,.07,1,.11,.09,.12,.14,.44],[.36,.2,.17,.23,.38,.21,.36,.18,.42,.11,1,.39,.47,.15,.27],[.86,.24,.07,.24,.83,.25,.92,.07,.91,.09,.39,1,.37,.31,.17],[.35,.33,.17,.32,.41,.21,.36,.17,.32,.12,.47,.37,1,.26,.2],[.29,.21,.27,.17,.33,.22,.31,.19,.28,.14,.15,.31,.26,1,.17],[.24,.18,.08,.17,.28,.17,.19,.08,.19,.44,.27,.17,.2,.17,1]];
+  const fill = v => `color-mix(in oklab, var(--heat) ${Math.round(Math.max(0, v) * 100)}%, var(--surface))`;
+  let h = '<table class="heat"><thead><tr><th></th>' + L.map(l => `<th scope="col">${l}</th>`).join("") + "</tr></thead><tbody>";
+  S.forEach((row, i) => {
+    h += `<tr><th class="row" scope="row">${L[i]}</th>`;
+    row.forEach((v, j) => {
+      if (i === j) { h += '<td class="self">–</td>'; return; }
+      const cls = v >= 0.7 ? "hot" : "";
+      h += `<td class="${cls}" style="background:${fill(v)};${v >= .6 && !cls ? "color:#fff" : ""}" title="${L[i]} vs ${L[j]}: ${v.toFixed(2)}">${v.toFixed(2)}</td>`;
+    });
+    h += "</tr>";
+  });
+  document.getElementById("heatwrap").innerHTML = h + "</tbody></table>";
+  document.getElementById("sw-lo").style.background = fill(0);
+  document.getElementById("sw-mid").style.background = fill(.5);
+  document.getElementById("sw-hi").style.background = fill(1);
+})();
+
+/* 5 · playground: unit vectors on a circle, cosine = cos(angle difference) */
+(function play() {
+  const svg = document.getElementById("ring"), cx = 200, cy = 200, R = 140, K = 5, AUTO = 0.70, SUGG = 0.55;
+  const start = () => [
+    { name: "Person 1", color: "var(--p1)", samples: [8, 14, 19, 24, 29].map(a => ({ a, room: "studio" })).concat([62, 67, 71].map(a => ({ a, room: "hall" }))) },
+    { name: "Person 2", color: "var(--p2)", samples: [140, 147, 151, 158, 163].map(a => ({ a, room: "studio" })) },
+    { name: "Person 3", color: "var(--p3)", samples: [232, 239, 243, 250].map(a => ({ a, room: "press room" })) },
+  ];
+  let persons = start();
+  const slider = document.getElementById("ang"), who = document.getElementById("who");
+  persons.forEach((p, i) => who.add(new Option(p.name, String(i))));
+  const pos = (a, rad = R) => [cx + rad * Math.cos(a * Math.PI / 180), cy - rad * Math.sin(a * Math.PI / 180)];
+  const sim = (a, b) => Math.cos((a - b) * Math.PI / 180);
+  const arcPath = (a1, a2, rad) => { const [x1, y1] = pos(a1, rad), [x2, y2] = pos(a2, rad); return `M ${x1} ${y1} A ${rad} ${rad} 0 0 0 ${x2} ${y2}`; };
+
+  function draw() {
+    const q = Number(slider.value);
+    svg.textContent = "";
+    el("circle", { cx, cy, r: R, fill: "none", stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    const dA = Math.acos(AUTO) * 180 / Math.PI, dS = Math.acos(SUGG) * 180 / Math.PI;
+    el("path", { d: arcPath(q - dS, q + dS, R + 24), fill: "none", stroke: "var(--warn)", "stroke-width": 5, "stroke-opacity": .55, "stroke-linecap": "round" }, svg);
+    el("path", { d: arcPath(q - dA, q + dA, R + 16), fill: "none", stroke: "var(--accent)", "stroke-width": 5, "stroke-linecap": "round" }, svg);
+    const all = [];
+    persons.forEach((p, pi) => p.samples.forEach(s => all.push({ ...s, pi, s: sim(q, s.a) })));
+    all.sort((x, y) => y.s - x.s);
+    const near = all.slice(0, K);
+    const [qx, qy] = pos(q);
+    near.forEach(n => { const [x, y] = pos(n.a); el("line", { x1: qx, y1: qy, x2: x, y2: y, stroke: persons[n.pi].color, "stroke-width": 1.5, "stroke-opacity": .7 }, svg); });
+    persons.forEach(p => p.samples.forEach(s => {
+      const [x, y] = pos(s.a);
+      el("circle", { cx: x, cy: y, r: s.added ? 6 : 5, fill: p.color, stroke: s.added ? "var(--fg)" : "none", "stroke-width": 2 }, svg);
+    }));
+    persons.forEach(p => {
+      const mean = Math.atan2(p.samples.reduce((t, s) => t + Math.sin(s.a * Math.PI / 180), 0), p.samples.reduce((t, s) => t + Math.cos(s.a * Math.PI / 180), 0)) * 180 / Math.PI;
+      const [x, y] = pos(mean, R - 34);
+      el("text", { x, y, "text-anchor": "middle", class: "t-text", "font-weight": 600, fill: p.color }, svg, p.name);
+    });
+    el("circle", { class: "q", cx: qx, cy: qy, r: 10, fill: "var(--surface)", stroke: "var(--fg)", "stroke-width": 3 }, svg);
+    el("text", { x: cx, y: cy - 6, "text-anchor": "middle", class: "t-muted" }, svg, "new voice");
+    el("text", { x: cx, y: cy + 12, "text-anchor": "middle", class: "t-mono" }, svg, `${q}°`);
+
+    const votes = persons.map(() => ({ n: 0, sum: 0 }));
+    near.forEach(n => { votes[n.pi].n += 1; votes[n.pi].sum += n.s; });
+    let best = 0;
+    votes.forEach((v, i) => { if (v.sum > votes[best].sum) best = i; });
+    const conf = votes[best].n ? votes[best].sum / votes[best].n : 0;
+    const box = document.getElementById("verdict");
+    let cls = "unk", big = "Unknown voice", small = `best match ${persons[best].name} at ${conf.toFixed(2)}: below 0.55, so no name is given`;
+    if (conf >= AUTO) { cls = "auto"; big = `${persons[best].name}`; small = `named automatically: ${votes[best].n} of ${K} nearest, mean similarity ${conf.toFixed(2)} ≥ 0.70`; }
+    else if (conf >= SUGG) { cls = "sugg"; big = `Probably ${persons[best].name}?`; small = `suggested to a human: mean similarity ${conf.toFixed(2)} (0.55–0.70)`; }
+    box.className = `verdict ${cls}`;
+    box.innerHTML = `<div class="big"></div><div class="cap"></div>`;
+    box.firstChild.textContent = big; box.lastChild.textContent = small;
+    const ol = document.getElementById("nn");
+    ol.innerHTML = "";
+    near.forEach(n => { const li = document.createElement("li"); li.textContent = `${persons[n.pi].name.padEnd(9)} ${n.room.padEnd(11)} ${n.s.toFixed(2)}${n.added ? "  (added)" : ""}`; ol.appendChild(li); });
+    who.value = String(best);
+  }
+  function fromPointer(ev) {
+    const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+    slider.value = String(Math.round(((Math.atan2(cy - p.y, p.x - cx) * 180 / Math.PI) + 360) % 360));
+    draw();
+  }
+  let dragging = false;
+  svg.addEventListener("pointerdown", ev => { dragging = true; svg.setPointerCapture(ev.pointerId); fromPointer(ev); });
+  svg.addEventListener("pointermove", ev => { if (dragging) fromPointer(ev); });
+  svg.addEventListener("pointerup", () => { dragging = false; });
+  slider.addEventListener("input", draw);
+  document.getElementById("confirm").addEventListener("click", () => {
+    persons[Number(who.value)].samples.push({ a: Number(slider.value), room: "confirmed", added: true });
+    draw();
+  });
+  document.getElementById("reset").addEventListener("click", () => { persons = start(); slider.value = "40"; draw(); });
+  draw();
+})();
+
+/* 6 · HNSW layers */
+(function hnsw() {
+  const svg = document.getElementById("hnsw");
+  const layers = [
+    { y: 40, label: "top layer: few points, long jumps", pts: [[90, 0], [330, 0], [560, 0], [760, 0]] },
+    { y: 150, label: "middle layer", pts: [[70, 0], [180, 0], [300, 0], [390, 0], [470, 0], [560, 0], [640, 0], [720, 0], [780, 0]] },
+    { y: 260, label: "bottom layer: every sample", pts: Array.from({ length: 24 }, (_, i) => [50 + i * 31 + (i % 3) * 6, (i % 2) * 14 - 7]) },
+  ];
+  layers.forEach(L => {
+    el("rect", { x: 30, y: L.y - 30, width: 770, height: 60, rx: 8, fill: "none", stroke: "var(--line)" }, svg);
+    el("text", { x: 40, y: L.y - 36, class: "t-muted" }, svg, L.label);
+    for (let i = 0; i + 1 < L.pts.length; i++) el("line", { x1: L.pts[i][0], y1: L.y + L.pts[i][1], x2: L.pts[i + 1][0], y2: L.y + L.pts[i + 1][1], stroke: "var(--line)", "stroke-width": 1.5 }, svg);
+    L.pts.forEach(p => el("circle", { cx: p[0], cy: L.y + p[1], r: 4.5, fill: "var(--grey)" }, svg));
+  });
+  const target = [598, 260 + 7];
+  const path = [[90, 40], [330, 40], [560, 40], [560, 150], [640, 150], [640, 150]];
+  const bottom = layers[2].pts.map(p => [p[0], 260 + p[1]]);
+  const near = bottom.reduce((b, p) => (Math.hypot(p[0] - target[0], p[1] - target[1]) < Math.hypot(b[0] - target[0], b[1] - target[1]) ? p : b));
+  const route = [...path.slice(0, 5), [640, 260 + (bottom.find(p => p[0] > 630) || near)[1]], near];
+  let d = `M ${route[0][0]} ${route[0][1]}`;
+  route.slice(1).forEach(p => { d += ` L ${p[0]} ${p[1]}`; });
+  el("path", { d, fill: "none", stroke: "var(--accent)", "stroke-width": 3, "stroke-linejoin": "round", "stroke-dasharray": "7 4" }, svg);
+  route.forEach(p => el("circle", { cx: p[0], cy: p[1], r: 6, fill: "var(--accent)" }, svg));
+  el("text", { x: 90, y: 22, "text-anchor": "middle", class: "t-text", "font-weight": 600 }, svg, "start");
+  el("path", { d: `M ${target[0]} ${target[1] - 11} l 3 8 l 8 0 l -6 5 l 2 8 l -7 -5 l -7 5 l 2 -8 l -6 -5 l 8 0 z`, fill: "var(--surface)", stroke: "var(--fg)", "stroke-width": 1.5 }, svg);
+  el("text", { x: target[0], y: 318, "text-anchor": "middle", class: "t-text", "font-weight": 600 }, svg, "new fingerprint → nearest samples found");
+})();
+</script>

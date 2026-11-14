@@ -1,0 +1,36 @@
+# Data never enters git (ADR-005): audio, video, embeddings, model answers, databases.
+/data/
+/refs/audio/
+*.wav
+*.flac
+*.mp3
+*.mp4
+*.m4a
+*.opus
+*.ogg
+*.webm
+*.mkv
+*.ts
+!*.d.ts
+*.npy
+*.npz
+*.pt
+*.pkl
+*.parquet
+*.sqlite
+
+# Keys
+.env
+.env.*
+*.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+dist/
+build/
+*.egg-info/

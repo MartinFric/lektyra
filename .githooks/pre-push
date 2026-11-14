@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# git pre-push: BLOCKING. All tests (slow ones too) and known vulnerabilities in the locked dependencies.
+# A missing tool or no network blocks the push; it never skips.
+set -uo pipefail
+
+fail=0
+if ! command -v uv >/dev/null 2>&1; then
+  echo "BLOCK [pre-push] uv is not installed" >&2
+  exit 1
+fi
+uv run --quiet pytest -q >&2 || { echo "BLOCK [pre-push] tests failed" >&2; fail=1; }
+
+if ! command -v osv-scanner >/dev/null 2>&1; then
+  echo "BLOCK [pre-push] osv-scanner is not installed (winget install Google.OSVScanner / brew install osv-scanner)" >&2
+  fail=1
+elif ! osv-scanner scan source --lockfile uv.lock >&2; then
+  echo "BLOCK [pre-push] osv-scanner: a locked dependency has a known vulnerability (or no network)" >&2
+  fail=1
+fi
+exit "$fail"

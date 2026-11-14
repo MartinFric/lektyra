@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
+# git commit-msg: BLOCKING. L7 no AI attribution, L8 conventional subject (lib.sh).
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib.sh
+. "$HOOK_DIR/lib.sh"
+
+lk_rule_attribution "$1"
+lk_rule_subject "$1"
+
+if [ "$LK_BLOCKS" -gt 0 ]; then
+  exit 1
+fi
+exit 0

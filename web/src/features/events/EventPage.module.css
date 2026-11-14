@@ -1,0 +1,131 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.side {
+  display: grid;
+  gap: var(--s5);
+}
+
+.source {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.primaryLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  height: var(--control-h);
+  padding: 0 var(--s4);
+  border-radius: var(--radius-sm);
+  background: var(--signal);
+  color: var(--on-accent);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.primaryLink:hover {
+  background: var(--signal-strong);
+  text-decoration: none;
+}
+
+.speakers {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.speaker {
+  display: grid;
+  gap: var(--s2);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.speaker:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.speakerHead {
+  display: grid;
+  grid-template-columns: 12px auto auto minmax(60px, 1fr);
+  align-items: center;
+  gap: var(--s2);
+}
+
+.voice {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.label {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.talk {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.shareTrack {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.shareBar {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  opacity: 0.8;
+}
+
+.variants {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.variant {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-height: 40px;
+  padding: 0 var(--s2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+}
+
+.variant:hover {
+  background: var(--surface-hover);
+  text-decoration: none;
+}
+
+.variantName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (width < 1100px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

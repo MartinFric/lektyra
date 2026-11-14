@@ -1,0 +1,90 @@
+/*
+ * lektyra design tokens. Components use only these variables, never a raw colour or size, so a dark theme is one
+ * more block here and nothing else.
+ */
+:root {
+  color-scheme: light;
+
+  /* surfaces */
+  --paper: #f4f6fa;
+  --surface: #ffffff;
+  --surface-sunken: #eef2f7;
+  --surface-hover: #f2f6fb;
+  --line: #e2e7ee;
+  --line-strong: #cfd7e2;
+
+  /* text */
+  --ink: #111c27;
+  --text: #3b4a5a;
+  --text-muted: #6a7686;
+  --text-faint: #96a2b1;
+  --on-accent: #ffffff;
+
+  /* brand */
+  --signal: #0b8fa3;
+  --signal-strong: #087686;
+  --signal-soft: #e3f4f7;
+  --claim: #d9821a;
+  --claim-soft: #fff3e3;
+  --speech: #9aa8b6;
+
+  /* status: never used for series */
+  --ok: #178a57;
+  --ok-soft: #e5f5ec;
+  --warn: #a35f00;
+  --warn-soft: #fff2df;
+  --error: #c8343f;
+  --error-soft: #fde9ea;
+
+  /* speakers, in fixed order: S1, S2, … */
+  --voice-1: #2f6fd6;
+  --voice-2: #e07b1a;
+  --voice-3: #179c84;
+  --voice-4: #d64545;
+  --voice-5: #8e5cb0;
+  --voice-6: #b88a00;
+  --voice-7: #d4558b;
+  --voice-8: #9a6b4a;
+  --voice-unknown: #9aa8b6;
+
+  /* type */
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-read: 15.5px;
+  --leading: 1.5;
+  --leading-read: 1.7;
+
+  /* space: a 4 px grid */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+
+  /* shape */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgb(17 28 39 / 6%);
+  --shadow: 0 1px 2px rgb(17 28 39 / 5%), 0 4px 14px rgb(17 28 39 / 6%);
+  --shadow-lg: 0 10px 40px rgb(17 28 39 / 16%);
+  --focus: 0 0 0 3px rgb(11 143 163 / 28%);
+
+  /* layout */
+  --sidebar: 232px;
+  --content-max: 1280px;
+  --control-h: 36px;
+  --control-h-sm: 30px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}

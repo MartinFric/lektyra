@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# shellcheck source-path=SCRIPTDIR
+# git pre-commit: BLOCKING. Rules in lib.sh (L1–L6, L9), each naming its ADR; their tests: bash .githooks/hook-tests.sh
+# There is no escape hatch: fix the cause, or change the ADR first.
+set -uo pipefail
+
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib.sh
+. "$HOOK_DIR/lib.sh"
+
+staged="$(lk_staged)"
+[ -z "$staged" ] && exit 0
+
+lk_rule_data "$staged"
+lk_rule_size "$staged"
+lk_rule_typing "$staged"
+lk_rule_domain "$staged"
+lk_rule_secrets
+lk_rule_python "$staged"
+lk_rule_web_escapes "$staged"
+lk_rule_web_check "$staged"
+
+if [ "$LK_BLOCKS" -gt 0 ]; then
+  printf '\npre-commit: %d blocking finding(s). Fix the cause, or change the ADR first.\n' "$LK_BLOCKS" >&2
+  exit 1
+fi
+exit 0

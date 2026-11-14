@@ -1,0 +1,79 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--s4);
+}
+
+.cardLink {
+  display: block;
+  border-radius: var(--radius-lg);
+  color: inherit;
+}
+
+.cardLink:hover {
+  text-decoration: none;
+}
+
+.card {
+  display: grid;
+  gap: var(--s2);
+  height: 100%;
+  transition:
+    border-color 140ms var(--ease),
+    box-shadow 140ms var(--ease),
+    transform 140ms var(--ease);
+}
+
+.cardLink:hover .card {
+  border-color: color-mix(in srgb, var(--signal) 40%, var(--line));
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius);
+  background: var(--signal-soft);
+  color: var(--signal-strong);
+}
+
+.duration {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.title {
+  margin-top: var(--s1);
+  font-size: var(--text-lg);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+  margin-top: var(--s2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardLink:hover .card {
+    transform: none;
+  }
+}

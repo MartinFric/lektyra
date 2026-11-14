@@ -1,0 +1,37 @@
+.anchor {
+  display: inline-flex;
+}
+
+.panel {
+  inset: auto;
+  position-area: block-end span-inline-end;
+  position-try-fallbacks: flip-block, flip-inline;
+  margin: 6px 0 0;
+  padding: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+.end {
+  position-area: block-end span-inline-start;
+}
+
+.panel:popover-open {
+  animation: drop 120ms var(--ease);
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel:popover-open {
+    animation: none;
+  }
+}

@@ -1,0 +1,115 @@
+.bar {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--shadow);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+}
+
+.play {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--signal);
+  color: var(--on-accent);
+  box-shadow: 0 4px 14px rgb(11 143 163 / 30%);
+  cursor: pointer;
+  transition: background 120ms var(--ease), transform 120ms var(--ease);
+}
+
+.play:hover:not(:disabled) {
+  background: var(--signal-strong);
+}
+
+.play:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.play:disabled {
+  background: var(--speech);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.time {
+  min-width: 128px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  font-variant-numeric: tabular-nums;
+}
+
+.of {
+  color: var(--text-faint);
+}
+
+.track {
+  position: relative;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.turn {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  border-radius: 2px;
+  opacity: 0.75;
+}
+
+.head {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
+.rate select {
+  height: var(--control-h-sm);
+  padding: 0 var(--s2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.broken {
+  grid-column: 1 / -1;
+  color: var(--error);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+@media (width < 800px) {
+  .bar {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
