@@ -46,7 +46,7 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 | K35 | **lektyra is a personal project** | done | 2026-11-14 | ADR-014 · concept moved into `docs/plans/concept.md`, removed from the old work notes · no client tools, data or keys · checks get their own data service (K21) |
 | K45 | **Every voice gets a number across videos; persons get kind, key, knowledge link** | done | 2026-11-14 | ADR-012 · migration 0003 · 7 API integration tests |
 | K33 | **Dev-only npm advisories** | done | 2026-11-14 | minimatch pinned to 11.0.8 inside typescript-estree (npm overrides) · `npm audit`: 0 |
-| K14 | **First commit** | done | 2026-11-14 | 86ba3d0, 17:32, all hooks green · local only (K36) |
+| K14 | **First commit** | done | 2026-11-14 | b449ca0, 17:32, all hooks green · author fric@ccsolutions.sk (repo-local git config) |
 | K30 | **Review UI** (ADR-009): Videos, Video (speakers + naming), Transcript (player, speaking now, name while playing, rate, flag), Persons, Voice map, Documents | done | 2026-11-14 | React 19 + TanStack Query + zod + sonner, Segoe UI Variable, logo B · one API wrapper, AppError, one error shape · ESLint + hook L9 (no casts/`!`/any/effects/raw fetch/disables) · 11 Vitest + 6 API integration tests · walked with skill manual-testing (16 shots) |
 | K24 | **Name a person while the video plays** | done | 2026-11-14 | Transcript → *Speaking now* card |
 | K13 | **Migration runner** | done | 2026-11-14 | `Store.migrate` applies newer `migrations/NNNN_*.sql`; 0002 applied; `lektyra ui` runs it on start |

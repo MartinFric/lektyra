@@ -12,7 +12,7 @@ blurs whose the product is, and it would make lektyra depend on someone else's i
 ## Decision
 
 1. **lektyra is Martin Fric's personal project.** The repository is `git@github.com:MartinFric/lektyra.git`, under
-   his account, with the proprietary LICENSE from the first commit (86ba3d0, 2026-11-14).
+   his account and personal e-mail, with the proprietary LICENSE from the first commit (b449ca0, 2026-11-14 17:32).
 2. **Nothing from any client goes in**: no client data, servers, repositories, keys or paid hours. Concepts, plans
    and decisions live in this repository only (`docs/plans/concept.md`, `spike-plan.md`, `docs/adr/`).
 3. **Checks run against lektyra's own public-data service.** lektyra ingests public registers itself into its own
@@ -24,6 +24,9 @@ blurs whose the product is, and it would make lektyra depend on someone else's i
    Each record keeps its source id and the date it was fetched, so a verdict names the exact record and the state of
    the register it saw (ADR-010).
 4. Any integration for a particular customer is an adapter outside the core, under its own terms.
+5. **lektyra can be licensed or handed over, to a client too, once Martin is happy with the terms** (Martin: "it can
+   be handed – once i am happy with terms"). Until terms are agreed, nothing of it (code, data, know-how) goes over;
+   it is shown running, not delivered.
 
 ## Consequences
 
