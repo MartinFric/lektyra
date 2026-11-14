@@ -59,7 +59,7 @@ function EventView({ event }: { readonly event: EventDetail }) {
             {(list) =>
               list.length === 0 ? (
                 <EmptyState icon="voices" title="No speakers yet">
-                  Run <code>uv run lektyra diarize {shortId(event.id)}</code>, then Rescan folders.
+                  Run <code>uv run lektyra diarize {shortId(event.id)}</code>, then Look for new videos.
                 </EmptyState>
               ) : (
                 <SpeakerList eventId={event.id} speakers={list} />

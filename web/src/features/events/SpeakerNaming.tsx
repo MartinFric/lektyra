@@ -56,9 +56,10 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
       exclude={[...speaker.rejected, ...(speaker.person_anonymous && speaker.person_id !== null ? [speaker.person_id] : [])]}
       currentId={speaker.status === 'confirmed' ? speaker.person_id : null}
       align="end"
+      iconOnly={compact}
     >
-      <Icon name="user" size={15} />
-      {text}
+      <Icon name={compact ? 'edit' : 'user'} size={15} />
+      {compact ? null : text}
     </PersonPicker>
   );
 
@@ -131,9 +132,15 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
             <strong className={styles.name}>{current.name}</strong>
           </>
         ) : null}
-        <Badge tone="ok">
-          <Icon name="check" size={12} /> named
-        </Badge>
+        {compact ? (
+          <span className={styles.check} title="Named by you">
+            <Icon name="check" size={14} label="named" />
+          </span>
+        ) : (
+          <Badge tone="ok">
+            <Icon name="check" size={12} /> named
+          </Badge>
+        )}
       </>,
       <>
         {picker('Change')}

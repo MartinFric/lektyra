@@ -22,6 +22,8 @@ interface PersonPickerProps {
   readonly currentId?: number | null;
   readonly triggerClassName?: string;
   readonly align?: 'start' | 'end';
+  /** A small square trigger (an icon only); `label` becomes its name. */
+  readonly iconOnly?: boolean;
 }
 
 /** Choose a person, or add one by typing a new name. The closest voices come first when hints are given. */
@@ -34,6 +36,7 @@ export function PersonPicker({
   currentId = null,
   triggerClassName,
   align = 'start',
+  iconOnly = false,
 }: PersonPickerProps) {
   return (
     <Popover
@@ -41,7 +44,13 @@ export function PersonPicker({
       align={align}
       width={320}
       trigger={(props) => (
-        <button type="button" {...props} className={triggerClassName ?? styles.trigger}>
+        <button
+          type="button"
+          {...props}
+          aria-label={iconOnly ? label : undefined}
+          title={iconOnly ? label : undefined}
+          className={iconOnly ? styles.iconTrigger : (triggerClassName ?? styles.trigger)}
+        >
           {children}
         </button>
       )}

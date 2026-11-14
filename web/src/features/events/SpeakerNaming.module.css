@@ -44,3 +44,36 @@
   gap: var(--s1);
   margin-left: auto;
 }
+
+/* compact (a narrow side column, the live list): one line, the name gives way first */
+.row[data-compact] {
+  flex-wrap: nowrap;
+}
+
+.row[data-compact] .who {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.row[data-compact] .who > * {
+  flex: none;
+}
+
+.row[data-compact] .name,
+.row[data-compact] .voiceName {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row[data-compact] .actions {
+  flex: none;
+}
+
+.check {
+  display: inline-flex;
+  color: var(--ok);
+}
+

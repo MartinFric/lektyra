@@ -38,9 +38,9 @@ export function AppShell() {
             icon="refresh"
             loading={sync.isPending}
             onClick={() => { sync.mutate(); }}
-            title="Read data/events again: new videos, new speakers"
+            title="Videos made in a terminal (lektyra ingest, diarize, transcribe) appear without restarting lektyra ui"
           >
-            Rescan folders
+            Look for new videos
           </Button>
           <p className={styles.local}>
             <span className={styles.dot} aria-hidden="true" />

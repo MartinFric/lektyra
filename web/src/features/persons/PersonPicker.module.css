@@ -18,6 +18,24 @@
   border-color: var(--speech);
 }
 
+.iconTrigger {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--control-h-sm);
+  height: var(--control-h-sm);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.iconTrigger:hover {
+  background: var(--surface-hover);
+  border-color: var(--speech);
+}
+
 .panel {
   display: grid;
   gap: var(--s1);

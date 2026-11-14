@@ -26,7 +26,7 @@ export function EventsPage() {
           list.length === 0 ? (
             <Card>
               <EmptyState icon="video" title="No videos yet">
-                Ingest one with <code>uv run lektyra ingest &lt;url&gt;</code>, then press Rescan folders.
+                Ingest one with <code>uv run lektyra ingest &lt;url&gt;</code>, then press Look for new videos.
               </EmptyState>
             </Card>
           ) : (

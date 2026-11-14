@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { type SpeakerName, speakerName } from '@/features/events/speakerName';
+import { FaceOf } from '@/features/persons/PersonFace';
 import type { Speaker } from '@/features/events/api';
 import { clock } from '@/platform/format';
 import { Icon, IconButton, voiceColor } from '@/platform/ui';
@@ -47,7 +48,7 @@ export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek
               </button>
             </div>
             <div className={styles.body}>
-              {sameSpeaker ? null : <SpeakerTag name={name} />}
+              {sameSpeaker ? null : <SpeakerTag name={name} personId={speakers.get(p.label)?.person_id ?? null} />}
               <p className={styles.text}>{p.text}</p>
               {flagged.length > 0 ? (
                 <div className={styles.flags}>
@@ -68,10 +69,12 @@ export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek
   );
 }
 
-function SpeakerTag({ name }: { readonly name: SpeakerName }) {
+function SpeakerTag({ name, personId }: { readonly name: SpeakerName; readonly personId: number | null }) {
+  const face = personId !== null && (name.kind === 'named' || name.kind === 'auto' || name.kind === 'voice');
   return (
     <span className={`${styles.speaker} ${styles[name.kind]}`}>
       <span className={styles.dot} aria-hidden="true" />
+      {face ? <FaceOf personId={personId} size="xs" /> : null}
       {name.text}
       {name.kind === 'auto' ? <span className={styles.guess}>auto</span> : null}
     </span>
