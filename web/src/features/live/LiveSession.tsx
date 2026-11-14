@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type RefObject, useRef, useState } from 'react';
 import { type Speaker, speakersQuery } from '@/features/events/api';
 import { SpeakerNaming } from '@/features/events/SpeakerNaming';
+import { ClaimsPanel } from '@/features/claims/ClaimsPanel';
 import { FaceOf } from '@/features/persons/PersonFace';
 import { byLabel, speakerName } from '@/features/events/speakerName';
 import { flagsQuery, type Paragraph, transcriptQuery } from '@/features/transcript/api';
@@ -48,6 +49,15 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
               {state.transcribe ? `${String(state.transcribed)}/${String(state.pieces)}` : state.pieces}
             </dd>
           </div>
+          {state.transcribe ? (
+            <div>
+              <dt>claims</dt>
+              <dd className="tabular" title={state.claims_error ?? `read up to minute ${String(state.claims_minutes)}`}>
+                {state.claims}
+                {state.claims_error ? <span className={styles.claimsError}> !</span> : null}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt>cost</dt>
             <dd className="tabular">${state.cost_usd.toFixed(3)}</dd>
@@ -83,7 +93,14 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
         </div>
       </div>
 
-      {eventId ? <LiveTranscript state={state} eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} /> : null}
+      {eventId ? (
+        <div className={styles.words}>
+          <LiveTranscript state={state} eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} />
+          {state.transcribe ? (
+            <ClaimsPanel eventId={eventId} live speakers={byName} onSeek={state.media ? seek : null} />
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

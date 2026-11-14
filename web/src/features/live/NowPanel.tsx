@@ -87,7 +87,9 @@ function NowRow({ state, uploads, onWatch }: RowProps) {
         <span className={styles.muted}>
           {sourceLabel(state.source, uploads)} · heard <span className="tabular">{clock(state.position_ms)}</span> ·{' '}
           {count(voices, 'voice')} ·{' '}
-          {state.transcribe ? `${String(state.transcribed)}/${String(state.pieces)} pieces in words` : 'voices only'}
+          {state.transcribe
+            ? `${String(state.transcribed)}/${String(state.pieces)} pieces in words · ${count(state.claims, 'claim')}`
+            : 'voices only'}
           {state.status === 'loading' ? (
             <>
               {' '}

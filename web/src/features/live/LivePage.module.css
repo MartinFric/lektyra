@@ -609,3 +609,22 @@
   color: var(--text);
 }
 
+/* the words and the claims side by side (K29) */
+.words {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.claimsError {
+  color: var(--error);
+  font-weight: 700;
+}
+
+@media (width < 1100px) {
+  .words {
+    grid-template-columns: 1fr;
+  }
+}
+

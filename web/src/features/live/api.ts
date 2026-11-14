@@ -36,6 +36,9 @@ export const liveStateSchema = z.object({
   stt_errors: z.number().int(),
   variant: z.string().nullable(),
   cost_usd: z.number(),
+  claims: z.number().int(),
+  claims_minutes: z.number().int(),
+  claims_error: z.string().nullable(),
 });
 
 export const uploadSchema = z.object({

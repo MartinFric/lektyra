@@ -103,11 +103,15 @@ def run_claims(
 
 def _write(ledger: Ledger, records: list[MinuteRecord], json_path: Path, md_path: Path, title: str, llm: str,
            engine: str) -> None:  # fmt: skip
-    json_path.write_text(
-        json.dumps({"ledger": asdict(ledger), "minutes": [asdict(r) for r in records]}, ensure_ascii=False, indent=1),
-        encoding="utf-8",
-    )
-    md_path.write_text(_markdown(ledger, records, title, llm, engine), encoding="utf-8")
+    body = json.dumps({"ledger": asdict(ledger), "minutes": [asdict(r) for r in records]}, ensure_ascii=False, indent=1)
+    _replace(json_path, body)  # the UI reads these while a live run writes them: never half a file
+    _replace(md_path, _markdown(ledger, records, title, llm, engine))
+
+
+def _replace(path: Path, text: str) -> None:
+    part = path.with_name(path.name + ".part")
+    part.write_text(text, encoding="utf-8")
+    part.replace(path)
 
 
 def _row(c: Claim) -> str:

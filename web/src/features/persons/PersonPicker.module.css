@@ -18,22 +18,24 @@
   border-color: var(--speech);
 }
 
+/* the same as the other icon buttons in a speaker row (IconButton, ghost, sm) */
 .iconTrigger {
   display: inline-grid;
   flex: none;
   place-items: center;
   width: var(--control-h-sm);
   height: var(--control-h-sm);
-  border: 1px solid var(--line-strong);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
+  background: transparent;
+  color: var(--text);
   cursor: pointer;
 }
 
-.iconTrigger:hover {
+.iconTrigger:hover,
+.iconTrigger[aria-expanded='true'] {
   background: var(--surface-hover);
-  border-color: var(--speech);
+  color: var(--ink);
 }
 
 .panel {

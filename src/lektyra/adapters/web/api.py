@@ -28,6 +28,7 @@ from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
 from lektyra.app.live import UPLOAD_PREFIX, LiveDevices, LiveManager, LiveState
 from lektyra.app.photos import Photos
 from lektyra.app.review import (
+    ClaimsView,
     Clip,
     EventDetail,
     EventSummary,
@@ -284,6 +285,11 @@ def _router(review: Review, live: LiveManager, photos: Photos, uploads: Uploads,
     @api.get("/events/{event_id}/speakers")
     def speakers(event_id: str) -> list[Speaker]:
         return review.speakers(event_id)
+
+    @api.get("/events/{event_id}/claims")
+    def claims(event_id: str) -> ClaimsView:
+        """The claims the claims loop found (live, or after the end pass). Not checked yet."""
+        return review.claims(event_id)
 
     @api.get("/events/{event_id}/speakers/{label}/clips")
     def speaker_clips(event_id: str, label: str) -> list[Clip]:

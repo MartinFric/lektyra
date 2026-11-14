@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
+import { ClaimsPanel } from '@/features/claims/ClaimsPanel';
 import { type EventDetail, eventQuery, isComplete, type Speaker, speakersQuery } from '@/features/events/api';
 import { SpeakerNaming } from '@/features/events/SpeakerNaming';
 import { byLabel, speakerName } from '@/features/events/speakerName';
@@ -138,6 +139,8 @@ function TranscriptView({ event, variant, transcript }: ViewProps) {
             <CardHeader title="Speaking now" subtitle={current ? `${clock(current.start_ms)} – ${clock(current.end_ms)}` : 'Play to see who speaks; name them right here.'} />
             <NowSpeaking eventId={event.id} label={current?.label} speakers={byName} />
           </Card>
+
+          <ClaimsPanel eventId={event.id} speakers={byName} onSeek={(ms) => { player.seek(ms); }} />
 
           <Card>
             <CardHeader title="Speakers" subtitle="Colours match the timeline" />

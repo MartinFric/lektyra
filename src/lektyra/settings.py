@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ffmpeg: str = "ffmpeg"
     ffprobe: str = "ffprobe"
     ytdlp: str = "yt-dlp"
+    claims_model: str = "google/gemini-3.5-flash"  # OpenRouter model of the live claims loop (K29)
     reviewer: str = "martin"  # who names, rates and flags in the local UI (audit_log, ADR-009)
 
 

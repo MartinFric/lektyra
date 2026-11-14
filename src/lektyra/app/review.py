@@ -14,10 +14,10 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from lektyra.adapters.store.postgres import (
     FlagKind,
@@ -129,6 +129,32 @@ class Person(BaseModel):
     samples: int
     events: int
     photo: PhotoInfo | None = None
+
+
+class ClaimOut(BaseModel):
+    """A checkable claim as the claims loop keeps it (spike-plan §8): what was said, the lekton, where to check."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str
+    speaker: str  # a voice label of the video (S1…N): names come from the speakers
+    at_ms: int
+    quote: str
+    lekton: str
+    kind: str
+    entities: list[str]
+    numbers: list[str]
+    sources: list[str]
+    worth: float
+    status: str
+    links: list[tuple[str, str]]
+
+
+class ClaimsView(BaseModel):
+    model: str | None  # the OpenRouter model whose ledger this is
+    stage: Literal["none", "live", "final"]  # final: after the end pass (links, duplicates, what live missed)
+    minutes: int
+    claims: list[ClaimOut]
 
 
 class Paragraph(BaseModel):
@@ -243,6 +269,19 @@ class _VoiceFiles:
             return None
         labels = assign(self.windows, self.centres)
         return profile_samples(self.windows, labels, index, self.centres[index], min_windows=min_windows)
+
+
+class _Ledger(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    claims: list[ClaimOut] = []
+    minute: int = 0
+
+
+class _LedgerFile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    ledger: _Ledger
 
 
 class Review:
@@ -586,6 +625,27 @@ class Review:
             self._photos.sweep()
         except LektyraError as err:
             log.warning("forgotten, but the picture is not deleted yet (%s): the next start deletes it", err.message)
+
+    # claims (spike-plan §8, K29) ---------------------------------------------------------------------------------
+    def claims(self, event_id: str) -> ClaimsView:
+        """The video's claim ledger: the end pass's when there is one, else the live loop's (newest model first)."""
+        path = self._dir(event_id)
+        files = sorted(path.glob("claims-*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+        final = [f for f in files if f.stem.endswith("-final")]
+        chosen = final[0] if final else (files[0] if files else None)
+        if chosen is None:
+            return ClaimsView(model=None, stage="none", minutes=0, claims=[])
+        try:
+            ledger = _LedgerFile.model_validate_json(chosen.read_text(encoding="utf-8")).ledger
+        except (ValueError, OSError):
+            return ClaimsView(model=None, stage="none", minutes=0, claims=[])
+        model = chosen.stem.removeprefix("claims-").removesuffix("-final").replace("__", "/", 1)
+        return ClaimsView(
+            model=model,
+            stage="final" if chosen in final else "live",
+            minutes=ledger.minute,
+            claims=sorted(ledger.claims, key=lambda c: c.at_ms),
+        )
 
     # transcripts ------------------------------------------------------------------------------------------------
     def _variant(self, event_id: str, variant: str) -> Path:

@@ -52,26 +52,22 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     </div>
   );
   /** Several known people talking at once (crosstalk): a label, never a voice (ADR-017). */
-  const mixed = compact ? (
-    <IconButton icon="users" size="sm" label={`${speaker.label} is several people at once…`} disabled={busy} onClick={() => { setMixing(true); }} />
-  ) : (
-    <Button size="sm" variant="ghost" icon="users" disabled={busy} onClick={() => { setMixing(true); }} title="Several people talking at once">
-      Mixed…
-    </Button>
+  const mixed = (
+    <IconButton icon="users" size="sm" label={`Mixed: ${speaker.label} is several people at once…`} disabled={busy} onClick={() => { setMixing(true); }} />
   );
 
-  const picker = (text: string) => (
+  /** Pick who it is. A tag names a speaker nobody named; a pencil changes a name. Icons only, named in the tooltip. */
+  const picker = (kind: 'name' | 'change' | 'other') => (
     <PersonPicker
-      label={`Who is ${speaker.label}?`}
+      label={kind === 'change' ? `Change who ${speaker.label} is` : kind === 'other' ? `Someone else: who is ${speaker.label}?` : `Name ${speaker.label}: who is it?`}
       onPick={pick}
       hints={hints}
       exclude={[...speaker.rejected, ...(speaker.person_anonymous && speaker.person_id !== null ? [speaker.person_id] : [])]}
       currentId={speaker.status === 'confirmed' ? speaker.person_id : null}
       align="end"
-      iconOnly={compact}
+      iconOnly
     >
-      <Icon name={compact ? 'edit' : 'user'} size={15} />
-      {compact ? null : text}
+      <Icon name={kind === 'change' ? 'edit' : 'tag'} size={15} />
     </PersonPicker>
   );
 
@@ -148,7 +144,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
           </Button>
         ) : null}
         {mixed}
-        {picker('Name…')}
+        {picker('name')}
       </>,
     );
   }
@@ -175,7 +171,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
       </>,
       <>
         {mixed}
-        {picker('Change')}
+        {picker('change')}
         <IconButton icon="x" size="sm" label={`Remove the name from ${speaker.label}`} disabled={busy} onClick={() => { unname.mutate(speaker.label); }} />
       </>,
     );
@@ -204,7 +200,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
           Not {shortName(current.name)}
         </Button>
         {mixed}
-        {picker('Other…')}
+        {picker('other')}
       </>,
     );
   }
@@ -220,7 +216,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     </>,
     <>
       {mixed}
-      {picker('Name…')}
+      {picker('name')}
     </>,
   );
 }

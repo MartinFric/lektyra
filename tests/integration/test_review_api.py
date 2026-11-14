@@ -33,6 +33,7 @@ DIM = 16
 ONE, TWO, THREE = "2026-01-01_10-00-00_one", "2026-01-02_10-00-00_two", "2026-01-03_10-00-00_three"
 VARIANT = "elevenlabs__scribe-v2@sk"
 OBJECTS = MemoryObjects()
+EVENTS_DIR: list[Path] = []  # the fixture's events folder, for tests that write files a run would write
 VIDEOS = MemoryObjects()
 COMMONS_PAGE = "https://commons.wikimedia.org/wiki/File:Delta_Person.jpg"
 
@@ -110,6 +111,7 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     _event(events / THREE, [c], rng)
     store = Store(url)
     store.migrate(ROOT / "migrations")
+    EVENTS_DIR.append(events)
     data = events.parent
     photos = Photos(store, OBJECTS, "test", Wikimedia(_wikimedia))
     review = Review(store, events, "test", photos)
@@ -483,3 +485,27 @@ def test_a_speaker_can_be_several_known_people_at_once_a_label_never_a_voice(cli
     assert _speakers(client, THREE)["S1"]["status"] in ("new", "auto", "unknown")  # an ordinary speaker again
     again = client.delete(url)
     assert (again.status_code, _error(again)["code"]) == (409, "conflict")
+
+
+def _claim(claim_id: str, at_ms: int) -> dict[str, object]:
+    return {
+        "id": claim_id, "speaker": "S1", "at_ms": at_ms, "quote": "vláda dala 416 tisíc eur",
+        "lekton": "Vláda uzavrela zmluvu za 416 000 eur.", "kind": "money", "entities": ["vláda"],
+        "numbers": ["416 000 €"], "sources": ["crz"], "worth": 0.8, "status": "open", "links": [],
+        "history": ["m2 add"],
+    }  # fmt: skip
+
+
+def test_claims_of_a_video_live_then_after_the_end_pass(client: TestClient) -> None:
+    folder = EVENTS_DIR[0] / ONE
+    url = f"/api/events/{ONE}/claims"
+    assert client.get(url).json() == {"model": None, "stage": "none", "minutes": 0, "claims": []}
+    live = {"ledger": {"claims": [_claim("c1", 61_000)], "minute": 3, "next_id": 2, "rejected": []}, "minutes": []}
+    (folder / "claims-google__gemini-3.5-flash.json").write_text(json.dumps(live), encoding="utf-8")
+    seen = client.get(url).json()
+    assert (seen["model"], seen["stage"], seen["minutes"]) == ("google/gemini-3.5-flash", "live", 3)
+    assert [(c["id"], c["numbers"], c["sources"]) for c in seen["claims"]] == [("c1", ["416 000 €"], ["crz"])]
+    final = {"ledger": {"claims": [_claim("c1", 61_000), _claim("c2", 5_000)], "minute": 4, "next_id": 3}}
+    (folder / "claims-google__gemini-3.5-flash-final.json").write_text(json.dumps(final), encoding="utf-8")
+    after = client.get(url).json()
+    assert (after["stage"], [c["id"] for c in after["claims"]]) == ("final", ["c2", "c1"])  # by time

@@ -8,7 +8,9 @@ than for archives so words arrive sooner. Alongside it:
 - **numbers and names**: every few seconds the session writes the files diarization writes (`diarization.json`,
   `speakers.npy`, `embeddings.npz`) and lists its speakers in the database, so each gets a voice number or a name
   exactly as an archive video does (ADR-012), and Martin can name a voice while it speaks;
-- **words per piece**: each finished piece goes to speech-to-text in the background (ElevenLabs, ~$0.22 an hour).
+- **words per piece**: each finished piece goes to speech-to-text in the background (ElevenLabs, ~$0.22 an hour);
+- **claims every minute** (K29): once a minute's words are in, the claims loop reads it (spike-plan §8, the same
+  loop as `lektyra claims`, ~$1.85 an hour); when the stream ends, one last pass covers the rest.
 
 When the stream ends (or Stop is pressed) the event is an ordinary video: transcript, speakers, names.
 
@@ -31,11 +33,13 @@ from pydantic import BaseModel, SecretStr
 
 from lektyra.adapters.media.loopback import LoopbackSource, output_devices
 from lektyra.adapters.store.postgres import Store
+from lektyra.app.claims import run_claims, run_end_pass
 from lektyra.app.ingest import run_ingest
 from lektyra.app.review import Review
 from lektyra.app.transcribe import model_dir, transcribe_piece
 from lektyra.domain.audio import SAMPLE_RATE, Curve, Samples, ms_to_samples
 from lektyra.domain.chunking import CutRule, Piece
+from lektyra.domain.claims import MINUTE_MS
 from lektyra.domain.diarization import UNCLEAR, Matrix, normalise
 from lektyra.domain.diarization import turns as make_turns
 from lektyra.domain.live_voices import JOIN, OnlineSpeakers, WindowPlanner
@@ -53,6 +57,7 @@ SAVE_EVERY_MS: Final = 5_000
 NOW_MS: Final = 2_500  # a speaker heard this recently is "speaking now"
 TAIL_MS: Final = 4_000
 RECENT_TURNS: Final = 80
+CLAIMS_EVERY_S: Final = 15.0  # how often the claims loop looks for a minute whose words are in
 STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:", "pc:sound")
 UPLOAD_PREFIX: Final = "upload:"  # a video uploaded to lektyra's MinIO, played as live
 MAX_SESSIONS: Final = 4  # at once; each one fingerprints a window every second
@@ -112,6 +117,9 @@ class LiveState(BaseModel):
     stt_errors: int
     variant: str | None
     cost_usd: float
+    claims: int = 0  # open claims so far
+    claims_minutes: int = 0  # minutes the claims loop has read
+    claims_error: str | None = None
 
 
 def label_of(speaker: int) -> str:
@@ -169,6 +177,11 @@ class LiveSession:
         self._stt_errors = 0
         self._cost = 0.0
         self._queue: queue.Queue[Piece | None] = queue.Queue()
+        self._words_ms = 0  # the words are in up to here (pieces are transcribed in order)
+        self._words_done = threading.Event()
+        self._claims = 0
+        self._claims_minutes = 0
+        self._claims_error: str | None = None
 
     # control ----------------------------------------------------------------------------------------------------
     def start(self) -> None:
@@ -188,11 +201,14 @@ class LiveSession:
     # the thread -------------------------------------------------------------------------------------------------
     def _run(self) -> None:
         worker: threading.Thread | None = None
+        claims: threading.Thread | None = None
         try:
             self._embed, self._model = self._make_embedder()
             if self._transcribe:
                 worker = threading.Thread(target=self._stt_loop, name=f"lektyra-stt-{self.id}", daemon=True)
                 worker.start()
+                claims = threading.Thread(target=self._claims_loop, name=f"lektyra-claims-{self.id}", daemon=True)
+                claims.start()
             with self._lock:
                 if self._status == "loading":
                     self._message = "Opening the source…"
@@ -215,11 +231,17 @@ class LiveSession:
                     self._message = "Writing the last words…"
                 self._queue.put(None)
                 worker.join()
+            self._words_done.set()
+            if claims:
+                with self._lock:
+                    self._message = "Writing the last claims…"
+                claims.join()
             with self._lock:
                 self._status = "finished"
                 self._message = "Finished. The video is in Videos with its speakers and transcript."
         except Exception as error:  # the session must end in a state the UI can show, whatever failed
             log.error("live session failed", exc_info=error)
+            self._words_done.set()
             if worker:
                 self._queue.put(None)
             with self._lock:
@@ -287,6 +309,52 @@ class LiveSession:
                 log.warning("speech-to-text failed for piece %s: %s", piece.index, type(error).__name__)
                 with self._lock:
                     self._stt_errors += 1
+            with self._lock:
+                self._words_ms = max(self._words_ms, piece.end_ms)
+
+    def _claims_loop(self) -> None:
+        """Claims for every minute whose words are in, then one last pass when the words are done. A failure never
+        stops the session: it shows in the state and the next round tries again."""
+        while not self._words_done.wait(CLAIMS_EVERY_S):
+            with self._lock:
+                due = self._words_ms // MINUTE_MS
+            if due > self._claims_minutes:
+                self._claims_up_to(due)
+        if self._event_dir is not None and self._words_ms > 0:
+            self._claims_up_to(None)
+            self._end_pass()
+
+    def _end_pass(self) -> None:
+        """The whole-picture pass once the show is over: what live missed, links, duplicates (~$0.15 an hour)."""
+        event_dir, key = self._event_dir, self._api_key
+        if event_dir is None or key is None:
+            return
+        with self._lock:
+            self._message = "Reviewing all claims once more…"
+        try:
+            run_end_pass(
+                event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE
+            )
+        except Exception as error:  # the live ledger stays; the end pass can be run by hand (lektyra end-pass)
+            log.warning("end pass failed: %s", error)
+
+    def _claims_up_to(self, minute: int | None) -> None:
+        event_dir, key = self._event_dir, self._api_key
+        if event_dir is None or key is None:
+            return
+        try:
+            result = run_claims(
+                event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE,
+                until_minute=minute,
+            )  # fmt: skip
+            with self._lock:
+                self._claims = sum(1 for c in result.ledger.claims if c.status == "open")
+                self._claims_minutes = minute if minute is not None else result.ledger.minute
+                self._claims_error = None
+        except Exception as error:  # the session goes on; the next round tries again
+            log.warning("claims failed: %s", error)
+            with self._lock:
+                self._claims_error = str(error).splitlines()[0][:200] if str(error) else type(error).__name__
 
     # what the review sees ---------------------------------------------------------------------------------------
     def _save(self) -> None:
@@ -394,6 +462,9 @@ class LiveSession:
                 stt_errors=self._stt_errors,
                 variant=model_dir(STT_MODEL, STT_LANGUAGE) if self._transcribe and self._transcribed else None,
                 cost_usd=round(self._cost, 4),
+                claims=self._claims,
+                claims_minutes=self._claims_minutes,
+                claims_error=self._claims_error,
             )
 
 

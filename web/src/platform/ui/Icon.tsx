@@ -27,6 +27,7 @@ const PATHS = {
   upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4',
   image: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01',
   calendar: 'M4 6h16v14H4zM4 10h16M8 3v4M16 3v4',
+  tag: 'M3 12V4h8l10 10-8 8zM7.5 7.5h.01',
 } as const;
 
 export type IconName = keyof typeof PATHS;
