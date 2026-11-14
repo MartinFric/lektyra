@@ -15,6 +15,7 @@ dependencies = [
   "psycopg[binary]>=3.2",
   "pydantic>=2.9",
   "pydantic-settings>=2.6",
+  "soundcard>=0.4.6",
   "typer>=0.15",
   "uvicorn>=0.32",
 ]
@@ -69,7 +70,7 @@ warn_unreachable = true
 
 [[tool.mypy.overrides]]
 # Untyped third-party libraries: allowed only inside src/lektyra/adapters/ (ADR-001).
-module = ["onnxruntime", "onnxruntime.*", "speechbrain", "speechbrain.*", "torchaudio", "torchaudio.*"]
+module = ["onnxruntime", "onnxruntime.*", "speechbrain", "speechbrain.*", "torchaudio", "torchaudio.*", "soundcard", "soundcard.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

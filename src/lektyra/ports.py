@@ -24,7 +24,7 @@ class SourceInfo(BaseModel):
     duration_s: float | None = None
     # What ffmpeg or yt-dlp opens. It may carry a short-lived token (TA3), so it is never saved (ADR-005).
     media_url: str = Field(exclude=True)
-    resolved_by: Literal["yt-dlp", "direct", "ta3", "stvr"]
+    resolved_by: Literal["yt-dlp", "direct", "ta3", "stvr", "loopback"]
     source_id: str | None = None  # the site's own id of the video, when it has one
 
 

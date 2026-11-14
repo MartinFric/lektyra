@@ -1,10 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Button, Card, CardHeader, Checkbox, EmptyState, Field, Icon, QueryView, Skeleton, TextInput } from '@/platform/ui';
-import { type LiveSource, liveSourcesQuery, useStartLive } from './api';
+import {
+  Button,
+  Card,
+  CardHeader,
+  Checkbox,
+  EmptyState,
+  Field,
+  Icon,
+  QueryView,
+  Select,
+  Skeleton,
+  TextInput,
+} from '@/platform/ui';
+import { liveDevicesQuery, type LiveSource, liveSourcesQuery, useStartLive } from './api';
 import styles from './LivePage.module.css';
 
-type Choice = { readonly kind: 'file'; readonly name: string } | { readonly kind: 'stream' };
+type Choice =
+  | { readonly kind: 'file'; readonly name: string }
+  | { readonly kind: 'stream' }
+  | { readonly kind: 'pc' };
 
 /** Pick what to listen to: a video downloaded with `lektyra fetch` (played here, next to lektyra) or a stream. */
 export function StartPanel() {
@@ -14,7 +29,19 @@ export function StartPanel() {
   const [stream, setStream] = useState('ta3:live');
   const [title, setTitle] = useState('');
   const [transcribe, setTranscribe] = useState(true);
-  const source = choice === null ? '' : choice.kind === 'file' ? choice.name : stream.trim();
+  const devices = useQuery({ ...liveDevicesQuery, enabled: choice?.kind === 'pc' });
+  const [device, setDevice] = useState<string | null>(null);
+  const output = device ?? devices.data?.default ?? null;
+  const source =
+    choice === null
+      ? ''
+      : choice.kind === 'file'
+        ? choice.name
+        : choice.kind === 'pc'
+          ? output
+            ? `pc:sound:${output}`
+            : ''
+          : stream.trim();
 
   return (
     <Card>
@@ -66,6 +93,49 @@ export function StartPanel() {
               <span className={styles.muted}>ta3:live, stvr:1 (Jednotka), stvr:2, ta3:nrsr, or a YouTube / Facebook live address. Watch it on TV.</span>
             </span>
           </label>
+          <label className={styles.option} data-on={choice?.kind === 'pc'}>
+            <input
+              type="radio"
+              name="source"
+              checked={choice?.kind === 'pc'}
+              onChange={() => { setChoice({ kind: 'pc' }); }}
+              className="visually-hidden"
+            />
+            <Icon name="broadcast" size={18} />
+            <span className={styles.optionText}>
+              <strong>This PC&apos;s sound</strong>
+              <span className={styles.muted}>
+                Orange TV (or any player) in the browser: lektyra hears what the PC plays. Keep other sounds off.
+              </span>
+            </span>
+          </label>
+          {choice?.kind === 'pc' ? (
+            <QueryView query={devices} loading={<Skeleton lines={1} height={36} />}>
+              {(d) =>
+                d.devices.length === 0 ? (
+                  <p className={styles.muted}>No sound output can be listened to on this PC.</p>
+                ) : (
+                  <Field label="Listen to" hint="The output the browser plays on (headsets often have two)">
+                    {({ id, describedBy }) => (
+                      <Select
+                        id={id}
+                        aria-describedby={describedBy}
+                        value={output ?? ''}
+                        onChange={(e) => { setDevice(e.target.value); }}
+                      >
+                        {d.devices.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                            {name === d.default ? ' (default)' : ''}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                )
+              }
+            </QueryView>
+          ) : null}
           {choice?.kind === 'stream' ? (
             <TextInput
               aria-label="Stream address"

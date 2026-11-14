@@ -18,10 +18,9 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 
 | id | task | state | since | note |
 |---|---|---|---|---|
-| K26 | **Sunday 15. 11. live run: TA3 V politike 11:00 (`ta3:live`), STVR O 5 minút 12 11:55 (`stvr:1`), Markíza Na telo 13:00 (no source yet)** | next | 2026-11-14 | [runbook](runbook-2026-11-15.md) · TA3 and STVR live sources tested tonight · Martin watches and names |
+| K26 | **Sunday 15. 11. live run: TA3 V politike 11:00 (`ta3:live`), STVR O 5 minút 12 11:55 (`stvr:1`), Markíza Na telo 13:00 (PC sound, Orange TV)** | next | 2026-11-14 | [runbook](runbook-2026-11-15.md) · TA3 and STVR live sources tested tonight · Martin watches and names |
 | K27 | **Guest profiles in advance** | doing | 2026-11-14 | ready to name in the real DB: Hlina and Takáč (rehearsal), Kuffa (9-min clip, transcribed), Fico (Voice 1, 5 videos), TA3 moderator (Voice 3, 4 videos) · STVR's guests optional (runbook step 3) |
 | K29 | **Live pipeline: claims every minute** | next | 2026-11-14 | voices now + words per piece done (K31) · for Sunday: run `lektyra claims` + `end-pass` on each recorded show right after it (replay = live) |
-| K28 | **Orange TV / Markíza: record the PC's sound output (WASAPI loopback)** | next | 2026-11-14 | Orange TV is DRM-protected, so only the sound output can be captured · not built: Sunday skips Markíza unless Martin wants it built tonight |
 | K47 | **UI: Fact check screen** | later | 2026-11-14 | after K37 (claims model) and K21/K22 · [mockup](https://claude.ai/artifact/1aFxRsPc2SAiooBCp6jiWA) |
 | K32 | **UI: split the bundle** (694 kB, react-markdown on every page) | later | 2026-11-14 | lazy routes for Documents and Voice map |
 | K39 | **The go/no-go number: share of claims in 5 real debates that public data can settle** (CRZ, NR SR votes, company registers, government data) | next | 2026-11-14 | market scan: under ~10 % the moat is thin · after K20 gold set and K21 |
@@ -43,6 +42,7 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 | id | task | state | since | note |
 |---|---|---|---|---|
 | K31 | **UI: Live screen** | done | 2026-11-14 | ADR-013 · walked on the full V politike Hlina–Takáč episode (YouTube, 720p): moderator recognised as Voice 3 (0.79) from older videos, Takáč as Voice 9 (0.88) from the D2 press conference, Hlina founded Voice 17, named during play, words every piece, 5:53 for $0.023 · player 1 s from lektyra |
+| K28 | **PC sound as a source (`pc:sound[:device]`): Orange TV / Markíza in the browser** | done | 2026-11-14 | ADR-013 §7 · WASAPI loopback (soundcard) → 48→16 kHz low-pass decimator (4 tests) · tested: Takáč recognised through the speakers at 0.83, words transcribed · no DRM circumvention · legal question in K40 |
 | K36 | **Pushed to `git@github.com:MartinFric/lektyra.git`** | done | 2026-11-14 | ADR-014 · GitHub holds the server-side date · pre-push: all tests + osv-scanner clean |
 | K35 | **lektyra is a personal project** | done | 2026-11-14 | ADR-014 · concept moved into `docs/plans/concept.md`, removed from the old work notes · no client tools, data or keys · checks get their own data service (K21) |
 | K45 | **Every voice gets a number across videos; persons get kind, key, knowledge link** | done | 2026-11-14 | ADR-012 · migration 0003 · 7 API integration tests |

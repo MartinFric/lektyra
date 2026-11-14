@@ -22,7 +22,7 @@ from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from starlette.exceptions import HTTPException
 
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
-from lektyra.app.live import LiveManager, LiveSource, LiveState
+from lektyra.app.live import LiveDevices, LiveManager, LiveSource, LiveState
 from lektyra.app.review import (
     EventDetail,
     EventSummary,
@@ -272,6 +272,10 @@ def _router(review: Review, live: LiveManager) -> APIRouter:
     @api.get("/live/sources")
     def live_sources() -> list[LiveSource]:
         return live.sources()
+
+    @api.get("/live/devices")
+    def live_devices() -> LiveDevices:
+        return live.devices()
 
     @api.post("/live", status_code=201)
     def live_start(body: LiveStartIn) -> LiveState:

@@ -27,6 +27,11 @@ like a stream (ADR-007), so rehearsals are honest.
 5. **The UI plays the downloaded video next to lektyra**: the player starts at lektyra's position; the drift is
    shown and one click syncs it. A live stream is watched on TV; the screen shows who speaks and the words.
 6. When the session ends, the event is an ordinary video: speakers, names, transcript, ratings.
+7. **A channel that only plays in a protected player** (Orange TV in the browser, DRM) is heard through **the PC's
+   sound output** (`pc:sound[:device]`, Windows WASAPI loopback, 48 kHz → 16 kHz through a low-pass filter). Nothing
+   is decrypted or downloaded: lektyra hears what the PC plays, so other sounds must be off. Circumventing the
+   player's protection is not an option (copyright law protects it on its own, whatever the subscription).
+   Whether recording a subscribed channel this way is allowed for analysis is part of the legal opinion (K40).
 
 ## Consequences
 

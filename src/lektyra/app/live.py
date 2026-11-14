@@ -25,6 +25,7 @@ from typing import Final, Literal
 import numpy as np
 from pydantic import BaseModel, SecretStr
 
+from lektyra.adapters.media.loopback import LoopbackSource, output_devices
 from lektyra.adapters.store.postgres import Store
 from lektyra.app.ingest import run_ingest
 from lektyra.app.review import Review
@@ -48,7 +49,7 @@ SAVE_EVERY_MS: Final = 5_000
 NOW_MS: Final = 2_500  # a speaker heard this recently is "speaking now"
 TAIL_MS: Final = 4_000
 RECENT_TURNS: Final = 80
-STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:")
+STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:", "pc:sound")
 MEDIA_TYPES: Final = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -76,6 +77,11 @@ class LiveTurn(BaseModel):
     start_ms: int
     end_ms: int
     label: str
+
+
+class LiveDevices(BaseModel):
+    devices: list[str]
+    default: str | None
 
 
 class LiveSource(BaseModel):
@@ -196,6 +202,7 @@ class LiveSession:
                 on_piece=self._piece,
                 should_stop=self._stop.is_set,
                 rule=LIVE_RULE,
+                source=LoopbackSource() if self._source.startswith("pc:sound") else None,
             )
             self._save()
             if worker:
@@ -433,6 +440,11 @@ class LiveManager:
         files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
         return [LiveSource(name=f.name, size=f.stat().st_size, kind=_kind(f)) for f in files]
 
+    def devices(self) -> LiveDevices:
+        """The PC's sound outputs a session can listen to (`pc:sound:<name>`, K28)."""
+        names, default = output_devices()
+        return LiveDevices(devices=names, default=default)
+
     def start(self, source: str, title: str | None, transcribe: bool) -> LiveState:
         with self._lock:
             if self._session is not None and self._session.active:
@@ -446,7 +458,8 @@ class LiveManager:
                 target = source
             else:
                 raise LektyraError(
-                    "invalid", "Pick a file from data/videos or give a stream address (ta3:live, stvr:1, https://…)."
+                    "invalid",
+                    "Pick a file from data/videos, a stream address (ta3:live, stvr:1, https://…) or pc:sound.",
                 )
             key = self._settings.openrouter_api_key
             if transcribe and key is None:
