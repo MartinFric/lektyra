@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { apiRequest, apiSend, seg } from '@/platform/api';
 
 const matchStatus = z.enum(['auto', 'suggested', 'unknown']);
-export const speakerStatus = z.enum(['auto', 'suggested', 'unknown', 'confirmed', 'new']);
+export const speakerStatus = z.enum(['auto', 'suggested', 'unknown', 'confirmed', 'new', 'overlap']);
 export type SpeakerStatus = z.infer<typeof speakerStatus>;
 
 export const eventSummarySchema = z.object({
@@ -55,6 +55,8 @@ export const speakerSchema = z.object({
   candidates: z.array(candidateSchema),
   rejected: z.array(z.number().int()),
   no_profile: z.boolean(),
+  /** status 'overlap' ("mixed"): these known people talk at once; a label, no voice (ADR-017). */
+  overlap: z.array(z.object({ person_id: z.number().int(), name: z.string() })),
 });
 
 export type EventSummary = z.infer<typeof eventSummarySchema>;
@@ -128,6 +130,28 @@ export function useUnnameSpeaker(eventId: string) {
   return useMutation({
     mutationFn: (label: string) => apiSend(`/events/${seg(eventId)}/speakers/${seg(label)}/person`, { method: 'DELETE' }),
     meta: { success: 'Name removed, with the voice samples it gave.' },
+    onSettled: after,
+  });
+}
+
+/** Mark a speaker as mixed (crosstalk): two or more known people at once. A label only (ADR-017). */
+export function useMarkMixed(eventId: string) {
+  const after = useAfterNaming();
+  return useMutation({
+    mutationFn: ({ label, personIds }: { readonly label: string; readonly personIds: readonly number[] }) =>
+      apiSend(`/events/${seg(eventId)}/speakers/${seg(label)}/overlap`, { method: 'PUT', body: { person_ids: personIds } }),
+    onSuccess: (_data, { label }) => {
+      toast.success(`${label} is marked as mixed`, { description: 'A label only: nobody\'s voice learns from it.' });
+    },
+    onSettled: after,
+  });
+}
+
+export function useClearMixed(eventId: string) {
+  const after = useAfterNaming();
+  return useMutation({
+    mutationFn: (label: string) => apiSend(`/events/${seg(eventId)}/speakers/${seg(label)}/overlap`, { method: 'DELETE' }),
+    meta: { success: 'Not mixed any more: matched like any other speaker.' },
     onSettled: after,
   });
 }

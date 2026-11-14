@@ -457,3 +457,29 @@ def test_renaming_a_voice_in_the_form_names_the_speaker_it_was_first_heard_in(cl
     assert (renamed.json()["anonymous"], renamed.json()["number"]) == (False, voice.number)
     after = _speakers(client, ONE)[str(founder["label"])]
     assert (after["status"], after["person_name"]) == ("confirmed", "Epsilon Person")
+
+
+def test_a_speaker_can_be_several_known_people_at_once_a_label_never_a_voice(client: TestClient) -> None:
+    # ADR-017 (Martin: "it will be only a label right? we wont merge those mixed up voices into both profiles"):
+    # THREE/S1 is named Gamma; marking it as Gamma + Epsilon takes its samples back and adds none to anyone.
+    gamma, epsilon = _person(client, "Gamma Person"), _person(client, "Epsilon Person")
+    assert gamma.samples > 0
+    url = f"/api/events/{THREE}/speakers/S1/overlap"
+    assert client.put(url, json={"person_ids": [gamma.id, epsilon.id]}).status_code == 204
+    speaker = _speakers(client, THREE)["S1"]
+    assert (speaker["status"], speaker["person_id"]) == ("overlap", None)
+    assert speaker["overlap"] == [
+        {"person_id": epsilon.id, "name": "Epsilon Person"},
+        {"person_id": gamma.id, "name": "Gamma Person"},
+    ]
+    assert _person(client, "Gamma Person").samples == 0  # the crosstalk no longer teaches Gamma's voice
+    assert _person(client, "Epsilon Person").samples == epsilon.samples  # and teaches nobody else
+    client.post("/api/sync")
+    assert _speakers(client, THREE)["S1"]["status"] == "overlap"  # matching leaves it alone
+    for body, status in (({"person_ids": [gamma.id]}, 422), ({"person_ids": [gamma.id, 999_999]}, 404)):
+        answer = client.put(url, json=body)
+        assert answer.status_code == status
+    assert client.delete(url).status_code == 204
+    assert _speakers(client, THREE)["S1"]["status"] in ("new", "auto", "unknown")  # an ordinary speaker again
+    again = client.delete(url)
+    assert (again.status_code, _error(again)["code"]) == (409, "conflict")

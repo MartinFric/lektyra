@@ -48,7 +48,7 @@ export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek
               </button>
             </div>
             <div className={styles.body}>
-              {sameSpeaker ? null : <SpeakerTag name={name} personId={speakers.get(p.label)?.person_id ?? null} />}
+              {sameSpeaker ? null : <SpeakerTag name={name} speaker={speakers.get(p.label)} />}
               <p className={styles.text}>{p.text}</p>
               {flagged.length > 0 ? (
                 <div className={styles.flags}>
@@ -69,12 +69,19 @@ export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek
   );
 }
 
-function SpeakerTag({ name, personId }: { readonly name: SpeakerName; readonly personId: number | null }) {
-  const face = personId !== null && (name.kind === 'named' || name.kind === 'auto' || name.kind === 'voice');
+function SpeakerTag({ name, speaker }: { readonly name: SpeakerName; readonly speaker: Speaker | undefined }) {
+  const ids =
+    name.kind === 'mixed'
+      ? (speaker?.overlap.map((o) => o.person_id) ?? [])
+      : speaker !== undefined && speaker.person_id !== null && (name.kind === 'named' || name.kind === 'auto' || name.kind === 'voice')
+        ? [speaker.person_id]
+        : [];
   return (
-    <span className={`${styles.speaker} ${styles[name.kind]}`}>
+    <span className={`${styles.speaker} ${styles[name.kind] ?? ''}`}>
       <span className={styles.dot} aria-hidden="true" />
-      {face ? <FaceOf personId={personId} size="xs" /> : null}
+      {ids.map((id) => (
+        <FaceOf key={id} personId={id} size="xs" />
+      ))}
       {name.text}
       {name.kind === 'auto' ? <span className={styles.guess}>auto</span> : null}
     </span>

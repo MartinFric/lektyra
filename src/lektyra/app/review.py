@@ -92,6 +92,11 @@ class Candidate(BaseModel):
     votes: int
 
 
+class OverlapPerson(BaseModel):
+    person_id: int
+    name: str
+
+
 class Speaker(BaseModel):
     label: str
     talk_s: float
@@ -105,6 +110,7 @@ class Speaker(BaseModel):
     candidates: list[Candidate]
     rejected: list[int]
     no_profile: bool
+    overlap: list[OverlapPerson] = []  # status 'overlap': these known persons talk at once (ADR-017)
 
 
 class Person(BaseModel):
@@ -333,7 +339,7 @@ class Review:
         self._confirm_named_founders()
         files: dict[str, _VoiceFiles | None] = {}
         for s in self._store.speakers():
-            if s.status in ("confirmed", "new") or s.no_profile:
+            if s.status in ("confirmed", "new", "overlap") or s.no_profile:
                 continue
             d = decide(self._store.neighbours(s))
             if d.status == "auto" and d.person_id is not None:
@@ -402,6 +408,7 @@ class Review:
     def speakers(self, event_id: str) -> list[Speaker]:
         self._dir(event_id)
         names = {p.id: p.name for p in self._store.persons()}
+        overlaps = self._store.overlaps(event_id)
         out: list[Speaker] = []
         for s in self._store.speakers(event_id):
             candidates = [
@@ -423,6 +430,7 @@ class Review:
                     candidates=candidates,
                     rejected=self._store.rejected(s.id),
                     no_profile=s.no_profile,
+                    overlap=[OverlapPerson(person_id=pid, name=name) for pid, name in overlaps.get(s.id, [])],
                 )
             )
         return out
@@ -470,6 +478,8 @@ class Review:
         with self.exclusive():
             speaker = self._speaker(event_id, label)
             samples, model = self._clean_windows(event_id, label)
+            if speaker.status == "overlap":  # one person after all: the label goes
+                self._store.clear_overlap(speaker, self._actor)
             # Only a speaker that *is* the voice (where it was first heard, or confirmed by Martin) carries the whole
             # voice into the name. A speaker merely matched to it (`auto`) may be a wrong guess: it moves alone.
             defines_voice = speaker.status in ("new", "confirmed")
@@ -512,6 +522,31 @@ class Review:
                 self._store.assign(speaker, into_id, samples.tolist(), model, self._actor)
             self._refresh_guesses()
             return Person(**self._store.person(into_id).model_dump())
+
+    def mark_overlap(self, event_id: str, label: str, person_ids: list[int]) -> None:
+        """Martin says a speaker is several known persons talking at once ("Fico + Kráľ", ADR-017). A label only:
+        no voice learns from it (samples it gave are taken back), it founds no voice and is never matched."""
+        ids = sorted(set(person_ids))
+        if len(ids) < 2:
+            raise LektyraError("invalid", "Pick at least two people: one person is a name, not an overlap.")
+        with self.exclusive():
+            speaker = self._speaker(event_id, label)
+            for person_id in ids:
+                person = self._store.person(person_id)
+                if person.anonymous:
+                    raise LektyraError("invalid", f"{person.name} has no name yet: an overlap is of known people.")
+            self._store.mark_overlap(speaker, ids, self._actor)
+            self._refresh_guesses()
+            self._store.delete_empty_voices()
+
+    def clear_overlap(self, event_id: str, label: str) -> None:
+        """Not an overlap after all: the speaker is matched again like any other."""
+        with self.exclusive():
+            speaker = self._speaker(event_id, label)
+            if speaker.status != "overlap":
+                raise LektyraError("conflict", "This speaker is not marked as several people.")
+            self._store.clear_overlap(speaker, self._actor)
+            self._refresh_guesses()
 
     def unname_speaker(self, event_id: str, label: str) -> None:
         with self.exclusive():

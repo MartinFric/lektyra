@@ -104,6 +104,10 @@ class MergeIn(BaseModel):
     into: int
 
 
+class OverlapIn(BaseModel):
+    person_ids: Annotated[list[int], Field(min_length=2, max_length=8)]
+
+
 class RatingIn(BaseModel):
     accuracy: Score | None = None
     names_numbers: Score | None = None
@@ -293,6 +297,17 @@ def _router(review: Review, live: LiveManager, photos: Photos, uploads: Uploads,
     @api.delete("/events/{event_id}/speakers/{label}/person", status_code=204)
     def unname_speaker(event_id: str, label: str) -> Response:
         review.unname_speaker(event_id, label)
+        return Response(status_code=204)
+
+    @api.put("/events/{event_id}/speakers/{label}/overlap", status_code=204)
+    def mark_overlap(event_id: str, label: str, body: OverlapIn) -> Response:
+        """This speaker is several known persons talking at once: a label, never a voice (ADR-017)."""
+        review.mark_overlap(event_id, label, body.person_ids)
+        return Response(status_code=204)
+
+    @api.delete("/events/{event_id}/speakers/{label}/overlap", status_code=204)
+    def clear_overlap(event_id: str, label: str) -> Response:
+        review.clear_overlap(event_id, label)
         return Response(status_code=204)
 
     @api.post("/events/{event_id}/speakers/{label}/rejections", status_code=204)

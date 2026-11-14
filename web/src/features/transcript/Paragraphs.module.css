@@ -161,3 +161,8 @@
 .flagButton:focus-visible {
   opacity: 1;
 }
+
+.mixed {
+  color: var(--text);
+  font-style: italic;
+}

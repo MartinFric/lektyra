@@ -59,6 +59,11 @@ export function ScheduleCard({ onSchedule }: { readonly onSchedule: () => void }
                     </span>
                     {r.message && r.status !== 'scheduled' ? <span className={styles.runMessage}>{r.message}</span> : null}
                   </span>
+                  {r.status === 'running' && r.session_id ? (
+                    <Link to={`/live?session=${encodeURIComponent(r.session_id)}`} className={styles.open}>
+                      Watch <Icon name="chevron" size={15} />
+                    </Link>
+                  ) : null}
                   {r.status === 'scheduled' || r.status === 'running' ? (
                     <Button
                       size="sm"

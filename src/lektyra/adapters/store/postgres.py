@@ -22,7 +22,7 @@ from lektyra.errors import LektyraError
 
 MIGRATION: Final = re.compile(r"^(\d{4})_.+\.sql$")
 Row = dict[str, Any]
-SpeakerStatus = Literal["auto", "suggested", "unknown", "confirmed", "new"]
+SpeakerStatus = Literal["auto", "suggested", "unknown", "confirmed", "new", "overlap"]
 FlagKind = Literal["words", "speaker", "name_number", "other"]
 PersonKind = Literal["politician", "host", "journalist", "expert", "official", "other"]
 RunStatus = Literal["scheduled", "running", "done", "failed", "missed", "cancelled"]
@@ -430,6 +430,65 @@ class Store:
                 (actor, str(person_id)),
             )
 
+    # overlaps (ADR-017) -----------------------------------------------------------------------------------------
+    def overlaps(self, event_id: str | None = None) -> dict[int, list[tuple[int, str]]]:
+        """For each speaker marked as an overlap: who talks at once in it (person id, name), by name."""
+        with self._tx() as cur:
+            cur.execute(
+                """SELECT o.event_speaker_id AS sid, p.id AS pid, p.name FROM speaker_overlap o
+                   JOIN person p ON p.id = o.person_id JOIN event_speaker s ON s.id = o.event_speaker_id
+                   WHERE %s::text IS NULL OR s.event_id = %s ORDER BY p.name""",
+                (event_id, event_id),
+            )
+            found: dict[int, list[tuple[int, str]]] = {}
+            for r in cur.fetchall():
+                found.setdefault(int(r["sid"]), []).append((int(r["pid"]), str(r["name"])))
+            return found
+
+    def mark_overlap(self, speaker: SpeakerRow, person_ids: Sequence[int], actor: str) -> None:
+        """The speaker is these persons talking at once: a label. Whatever samples it gave a voice are taken back,
+        it points at nobody, and matching leaves it alone (status 'overlap')."""
+        with self._tx() as cur:
+            cur.execute("DELETE FROM voice_sample WHERE event_speaker_id = %s", (speaker.id,))
+            cur.execute("DELETE FROM speaker_overlap WHERE event_speaker_id = %s", (speaker.id,))
+            for person_id in person_ids:
+                cur.execute(
+                    "INSERT INTO speaker_overlap (event_speaker_id, person_id, created_by) VALUES (%s, %s, %s)",
+                    (speaker.id, person_id, actor),
+                )
+            cur.execute(
+                "UPDATE event_speaker SET person_id = NULL, status = 'overlap', score = NULL WHERE id = %s",
+                (speaker.id,),
+            )
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'overlap', %s, jsonb_build_object('persons', %s::bigint[]))""",
+                (actor, f"{speaker.event_id}/{speaker.label}", list(person_ids)),
+            )
+
+    def clear_overlap(self, speaker: SpeakerRow, actor: str) -> None:
+        with self._tx() as cur:
+            cur.execute("DELETE FROM speaker_overlap WHERE event_speaker_id = %s", (speaker.id,))
+            cur.execute(
+                "UPDATE event_speaker SET status = 'unknown' WHERE id = %s AND status = 'overlap'", (speaker.id,)
+            )
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'overlap', %s, '{"cleared": true}')""",
+                (actor, f"{speaker.event_id}/{speaker.label}"),
+            )
+
+    def delete_empty_voices(self) -> int:
+        """Unnamed voices nobody is heard as any more (their speaker became an overlap) go. Numbers are not reused."""
+        with self._tx() as cur:
+            cur.execute(
+                """DELETE FROM person p WHERE p.anonymous
+                   AND NOT EXISTS (SELECT 1 FROM event_speaker s WHERE s.person_id = p.id)
+                   AND NOT EXISTS (SELECT 1 FROM voice_sample v WHERE v.person_id = p.id)
+                   RETURNING id"""
+            )
+            return len(cur.fetchall())
+
     # pictures (ADR-015) -----------------------------------------------------------------------------------------
     def photo(self, person_id: int) -> PhotoRow:
         with self._tx() as cur:
@@ -576,6 +635,12 @@ class Store:
                    ON CONFLICT DO NOTHING""",
                 (target_id, source_id),
             )
+            cur.execute(  # an overlap that named the source names the target instead
+                """UPDATE speaker_overlap o SET person_id = %s WHERE o.person_id = %s AND NOT EXISTS
+                       (SELECT 1 FROM speaker_overlap t
+                        WHERE t.event_speaker_id = o.event_speaker_id AND t.person_id = %s)""",
+                (target_id, source_id, target_id),
+            )
             cur.execute(  # a picture follows the person, unless the target has its own
                 """UPDATE person_photo SET person_id = %s
                    WHERE person_id = %s AND NOT EXISTS (SELECT 1 FROM person_photo WHERE person_id = %s)""",
@@ -621,7 +686,7 @@ class Store:
         with self._tx() as cur:
             cur.execute(
                 """UPDATE event_speaker SET person_id = %s, score = %s, status = %s
-                   WHERE id = %s AND status NOT IN ('confirmed', 'new')""",
+                   WHERE id = %s AND status NOT IN ('confirmed', 'new', 'overlap')""",
                 (person_id, score, status, speaker_id),
             )
 

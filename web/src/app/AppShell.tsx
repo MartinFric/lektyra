@@ -1,5 +1,7 @@
+import { useQuery } from '@tanstack/react-query';
 import { NavLink, Outlet } from 'react-router';
 import { useSync } from '@/features/events/api';
+import { isActive, liveSessionsQuery } from '@/features/live/api';
 import { Button, Icon, type IconName, LogoMark } from '@/platform/ui';
 import styles from './AppShell.module.css';
 
@@ -12,6 +14,8 @@ const NAV: readonly { readonly to: string; readonly label: string; readonly icon
 
 export function AppShell() {
   const sync = useSync();
+  const sessions = useQuery(liveSessionsQuery);
+  const live = (sessions.data ?? []).filter((s) => isActive(s.status)).length;
   return (
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
@@ -28,6 +32,12 @@ export function AppShell() {
             >
               <Icon name={item.icon} size={18} />
               {item.label}
+              {item.to === '/live' && live > 0 ? (
+                <span className={styles.live} title={`${String(live)} live session(s) running`}>
+                  <span className={styles.pulse} aria-hidden="true" />
+                  {live}
+                </span>
+              ) : null}
             </NavLink>
           ))}
         </nav>

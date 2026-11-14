@@ -22,3 +22,4 @@ review that keeps it true).
 | [014](014-personal-project-own-data.md) | lektyra is a personal project and checks against its own data | accepted |
 | [015](015-a-face-next-to-a-name.md) | A face next to a name; pictures live in lektyra's own MinIO | accepted |
 | [016](016-scheduled-runs-uploads-parallel-sessions.md) | Scheduled live runs, uploaded videos played as live, several sessions at once | accepted |
+| [017](017-mixed-speakers-are-a-label.md) | A mixed speaker is a label, never a voice | accepted |

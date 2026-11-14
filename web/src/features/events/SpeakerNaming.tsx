@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { FaceOf } from '@/features/persons/PersonFace';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { similarity } from '@/platform/format';
 import { Badge, Button, Icon, IconButton, Spinner } from '@/platform/ui';
-import { type Speaker, useNameSpeaker, useRejectCandidate, useUnnameSpeaker } from './api';
+import { type Speaker, useClearMixed, useNameSpeaker, useRejectCandidate, useUnnameSpeaker } from './api';
+import { MixedDialog } from './MixedDialog';
 import styles from './SpeakerNaming.module.css';
 
 interface SpeakerNamingProps {
@@ -31,7 +32,9 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
   const name = useNameSpeaker(eventId);
   const unname = useUnnameSpeaker(eventId);
   const reject = useRejectCandidate(eventId);
-  const busy = name.isPending || unname.isPending || reject.isPending;
+  const clear = useClearMixed(eventId);
+  const [mixing, setMixing] = useState(false);
+  const busy = name.isPending || unname.isPending || reject.isPending || clear.isPending;
   const hints = speaker.candidates.map((c) => ({ personId: c.person_id, score: c.score }));
   const pick = (p: Who) => {
     name.mutate({ label: speaker.label, personId: p.id, personName: p.name });
@@ -45,7 +48,16 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
     <div className={styles.row} data-compact={compact || undefined}>
       <span className={styles.who}>{who}</span>
       <span className={styles.actions}>{actions}</span>
+      {mixing ? <MixedDialog eventId={eventId} speaker={speaker} onClose={() => { setMixing(false); }} /> : null}
     </div>
+  );
+  /** Several known people talking at once (crosstalk): a label, never a voice (ADR-017). */
+  const mixed = compact ? (
+    <IconButton icon="users" size="sm" label={`${speaker.label} is several people at once…`} disabled={busy} onClick={() => { setMixing(true); }} />
+  ) : (
+    <Button size="sm" variant="ghost" icon="users" disabled={busy} onClick={() => { setMixing(true); }} title="Several people talking at once">
+      Mixed…
+    </Button>
   );
 
   const picker = (text: string) => (
@@ -74,6 +86,24 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
           </span>
         </span>
       </div>
+    );
+  }
+
+  // Mixed: several known people at once. Their faces and names; change who, or undo.
+  if (speaker.status === 'overlap') {
+    const names = speaker.overlap.map((o) => o.name).join(' + ');
+    return row(
+      <>
+        {speaker.overlap.map((o) => (
+          <FaceOf key={o.person_id} personId={o.person_id} size="xs" />
+        ))}
+        {showName ? <strong className={styles.name}>{names}</strong> : null}
+        <Badge title="Several people talking at once: a label, no voice profile">mixed</Badge>
+      </>,
+      <>
+        <IconButton icon="edit" size="sm" label={`Change who is mixed in ${speaker.label}`} disabled={busy} onClick={() => { setMixing(true); }} />
+        <IconButton icon="x" size="sm" label={`${speaker.label} is not mixed`} disabled={busy} onClick={() => { clear.mutate(speaker.label); }} />
+      </>,
     );
   }
 
@@ -117,6 +147,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
             Other voice
           </Button>
         ) : null}
+        {mixed}
         {picker('Name…')}
       </>,
     );
@@ -143,6 +174,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
         )}
       </>,
       <>
+        {mixed}
         {picker('Change')}
         <IconButton icon="x" size="sm" label={`Remove the name from ${speaker.label}`} disabled={busy} onClick={() => { unname.mutate(speaker.label); }} />
       </>,
@@ -171,6 +203,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
         <Button size="sm" variant="ghost" icon="x" disabled={busy} loading={reject.isPending} onClick={() => { refuse(current); }}>
           Not {shortName(current.name)}
         </Button>
+        {mixed}
         {picker('Other…')}
       </>,
     );
@@ -185,7 +218,10 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
         </span>
       ) : null}
     </>,
-    picker('Name…'),
+    <>
+      {mixed}
+      {picker('Name…')}
+    </>,
   );
 }
 
