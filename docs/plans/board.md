@@ -20,24 +20,33 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 |---|---|---|---|---|
 | K26 | **Sunday 15. 11. live run: TA3 V politike 11:00, STVR O 5 minút 12 11:55, Markíza Na telo 13:00** | next | 2026-11-14 | guests from Denník N's weekend list; times are the usual slots (verify) · Martin watches |
 | K27 | **Guest profiles in advance: Kuffa, Hlina, Gašpar, Karas, Drucker, Šimečka + moderators Gudiak, Lacová, TA3's** | next | 2026-11-14 | 1–2 archive episodes each · Martin names voices in the UI |
-| K29 | **Live pipeline: piece → speech-to-text → voice match against profiles → claims every minute** | next | 2026-11-14 | spike-plan §8; online voice matching instead of whole-video clustering |
+| K29 | **Live pipeline: piece → speech-to-text → voice match against profiles → claims every minute** | doing | 2026-11-14 | ADR-013: voices now + words per piece built · claims every minute still to wire in |
 | K28 | **Orange TV source: record the PC's sound output (WASAPI loopback)** | next | 2026-11-14 | for Markíza; one stream at a time; ADR-007 adapter |
-| K31 | **UI: Live and Fact check screens** | next | 2026-11-14 | [mockup](https://claude.ai/artifact/1aFxRsPc2SAiooBCp6jiWA) · with K29 (live pipeline) and K22 (web fallback) |
+| K31 | **UI: Live and Fact check screens** | doing | 2026-11-14 | Live built (ADR-013), walk pending · Fact check with K21/K22 |
 | K32 | **UI: split the bundle** (694 kB, react-markdown on every page) | later | 2026-11-14 | lazy routes for Documents and Voice map |
-| K33 | **Dev-only npm advisories: 7 moderate in typescript-eslint's tree** | later | 2026-11-14 | no non-breaking fix yet; `npm audit` in web/; not in the shipped bundle |
+| K39 | **The go/no-go number: share of claims in 5 real debates that public data can settle** (CRZ, NR SR votes, company registers, government data) | next | 2026-11-14 | market scan: under ~10 % the moat is thin · after K20 gold set and K21 |
+| K41 | **Demo package: Sunday's debates with numbers** (names, lag, cost, claims with sources) | next | 2026-11-14 | runs on Martin's PC; recorded |
+| K43 | **Facebook / YouTube videos and lives as sources** | next | 2026-11-14 | yt-dlp already reads public ones; login pages need `--cookies-from-browser` · test one politician's page |
+| K44 | **Ads and pre-show: end-of-event cheap-model pass marks ad stretches; ad-only voices removed; analysis starts at the moderator's voice** | next | 2026-11-14 | extends K23 / ADR-011 · EPG gives the slot, not the real start or the breaks |
+| K37 | **Claims data model v2** (ADR + migration): statement → claim → canonical-claim link → check (append-only, as-of date) · entities with IČO · evidence with query + record ids · media item with platform | later | 2026-11-14 | canonical match = vector recall **and** equal slots (amount, unit, period, entity), else no reuse · typed vector dims + HNSW for claims · unaccent + pg_trgm (+ Slovak hunspell) |
+| K38 | **Verdict labels as Demagog's** (pravda, nepravda, zavádzajúce, neoveriteľné) **+ eval on the DemagogSK corpus** | later | 2026-11-14 | their 12.6k labelled claims become a test set (check the dataset's terms) · verdicts on claims, never a per-person "liar" score · contest/correction log |
+| K36 | **Push to `git@github.com:MartinFric/lektyra.git`** | doing | 2026-11-14 | ADR-014 · a server-side date for the history |
+| K40 | **Legal opinion before anyone else uses it** | blocked:Martin | 2026-11-14 | voiceprints of public figures (GDPR Art. 9, journalism exemption), broadcast capture via Orange TV, defamation · decides which users are possible |
 | K23 | **Ad breaks: detect and pause the analysis** | next | 2026-11-14 | ADR-011 |
 | K22 | **Fact check web fallback: 2 independent reliable sources, filtered claims kept** | next | 2026-11-14 | ADR-010 · search API bake-off open |
 | K18 | **Eval: WER/CER, names and numbers accuracy, cut-word check against references** | next | 2026-11-14 | after K7 · eval skill |
 | K20 | **Claims eval: Martin marks the claims worth checking in A (gold set) → live recall/precision** | next | 2026-11-14 | spike-plan §8 step 2.2 |
-| K21 | **Quick checks via ps-mcp for 3 claim kinds (contract/amount, company, vote)** | next | 2026-11-14 | spike-plan §8 step 2.3 · manual CRZ check of c23 in the report shows the two queries to automate |
+| K21 | **Own public-data service: CRZ, NR SR votes and prints, company registers → quick checks for 3 claim kinds (contract/amount, company, vote)** | next | 2026-11-14 | ADR-014 · ingest + refresh into lektyra's Postgres, record ids and fetch dates kept (ADR-010) · the manual CRZ check of c23 shows the two queries to automate |
 | K19 | **Soniox adapter + pyannote comparison** | later | 2026-11-14 | Martin: "keep soniox and hf for later" |
-| K12 | **Check the BMG contract for an IP clause** | blocked:Martin | 2026-11-14 | spike-plan "Name and ownership" |
-| K14 | **First commit** | blocked:Martin | 2026-11-14 | all gates green; nothing committed until Martin says so |
 
 ## Archive
 
 | id | task | state | since | note |
 |---|---|---|---|---|
+| K35 | **lektyra is a personal project** | done | 2026-11-14 | ADR-014 · concept moved into `docs/plans/concept.md`, removed from the old work notes · no client tools, data or keys · checks get their own data service (K21) |
+| K45 | **Every voice gets a number across videos; persons get kind, key, knowledge link** | done | 2026-11-14 | ADR-012 · migration 0003 · 7 API integration tests |
+| K33 | **Dev-only npm advisories** | done | 2026-11-14 | minimatch pinned to 11.0.8 inside typescript-estree (npm overrides) · `npm audit`: 0 |
+| K14 | **First commit** | done | 2026-11-14 | 86ba3d0, 17:32, all hooks green · local only (K36) |
 | K30 | **Review UI** (ADR-009): Videos, Video (speakers + naming), Transcript (player, speaking now, name while playing, rate, flag), Persons, Voice map, Documents | done | 2026-11-14 | React 19 + TanStack Query + zod + sonner, Segoe UI Variable, logo B · one API wrapper, AppError, one error shape · ESLint + hook L9 (no casts/`!`/any/effects/raw fetch/disables) · 11 Vitest + 6 API integration tests · walked with skill manual-testing (16 shots) |
 | K24 | **Name a person while the video plays** | done | 2026-11-14 | Transcript → *Speaking now* card |
 | K13 | **Migration runner** | done | 2026-11-14 | `Store.migrate` applies newer `migrations/NNNN_*.sql`; 0002 applied; `lektyra ui` runs it on start |

@@ -38,7 +38,7 @@ class Claim:
     kind: ClaimKind
     entities: tuple[str, ...]
     numbers: tuple[str, ...]
-    sources: tuple[Source, ...]  # where PS can check it
+    sources: tuple[Source, ...]  # where it can be checked
     worth: float  # 0..1: checkable × weight (magnitude, topic, speaker) × novelty
     status: ClaimStatus = "open"
     links: tuple[tuple[Relation, str], ...] = ()

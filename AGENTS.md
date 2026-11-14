@@ -5,7 +5,8 @@ here; nothing in it is Claude-specific.
 
 **lektyra** turns a live stream or a stored video into a transcript, finds who speaks, recognises known voices,
 and extracts the statements worth checking (the *lekton*: what is said, the part that can be true or false). It is
-standalone, runs locally and is written in Python.
+Martin Fric's personal project (ADR-014, `git@github.com:MartinFric/lektyra.git`): standalone, local, Python with a
+React review UI.
 
 ## Where things are
 
@@ -38,6 +39,8 @@ standalone, runs locally and is written in Python.
 - **The domain is pure**: `src/lektyra/domain/` does no I/O and imports nothing from `adapters/` or `app/`
   (ADR-002).
 - **A wrong name is worse than "unknown"** (ADR-004).
+- **Nothing from any client**: no client data, servers, repositories, keys or paid hours. Checks use lektyra's own
+  public-data service (ADR-014).
 - **The UI** (`web/`): no casts, no non-null `!`, no `any`, no `useEffect`, no raw `fetch`, no `eslint-disable` or
   `@ts-ignore`; ESLint and hook L9 refuse them (ADR-009, skill `frontend`).
 

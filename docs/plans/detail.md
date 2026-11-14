@@ -150,8 +150,8 @@ compare frames.
 
 *done, 2026-11-14 · refs: ADR-001..007*
 
-Repo created in Martin's personal space with a proprietary LICENSE from the first file. The spike plan moved here
-from BMG's notes; a pointer stays there.
+Repo created in Martin's personal space with a proprietary LICENSE from the first file. The spike plan and the
+original concept (`concept.md`) live here; lektyra is a personal project (ADR-014).
 
 Gates, modelled on HTN:
 - `.githooks/lib.sh` holds rules L1–L8, each naming its ADR;

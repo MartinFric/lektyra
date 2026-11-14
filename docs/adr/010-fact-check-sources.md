@@ -1,18 +1,20 @@
 # ADR-010: Fact check: our data first, the web as fallback, two reliable sources
 
-*Status: accepted · 2026-11-14 · Martin ("fallback … internet in some elegant way … anchored at least on 2 reliable
-sources else it will be need to verify … filter out uninteresting claims – but store them")*
+*Status: accepted, amended by ADR-014 ("our data" is lektyra's own public-data service) · 2026-11-14 · Martin
+("fallback … internet in some elegant way … anchored at least on 2 reliable sources else it will be need to verify …
+filter out uninteresting claims – but store them")*
 
 ## Context
 
-The claims loop produces checkable claims (spike-plan §8, board K10). Some can be checked against PS's own
-data: CRZ contracts, ministry invoices, NR SR votes and prints, finstat. Many cannot: quotes, statistics, events.
+The claims loop produces checkable claims (spike-plan §8, board K10). Some can be checked against public registers
+lektyra holds itself (ADR-014): CRZ contracts, NR SR votes and prints, company registers, budget data. Many cannot:
+quotes, statistics, events.
 A web search finds anything, including wrong things. A verdict that names a politician must not rest on one blog.
 
 ## Decision
 
-1. **Our data first.** Each claim kind has its quick checks (K21): contract/amount → CRZ; company → finstat/CRZ;
-   vote/bill → NR SR. A match or mismatch there is recorded as a source with its record id.
+1. **Our data first.** Each claim kind has its quick checks (K21): contract/amount → CRZ; company → company
+   registers/CRZ; vote/bill → NR SR. A match or mismatch there is recorded as a source with its record id.
 2. **The web as fallback.** It runs for claims our data cannot settle, or to corroborate it. Every result is
    classified by its publisher:
    - **official**: state and public bodies (gov.sk and its ministries, crz.gov.sk, nrsr.sk, slov-lex.sk,

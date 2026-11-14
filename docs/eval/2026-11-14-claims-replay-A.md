@@ -66,5 +66,5 @@ VAT.** The ownership part of the claim needs finstat and is unchecked.
 - Next:
   - the gold set (K20);
   - a stricter `worth` (calibrated on the gold set);
-  - quick checks through ps-mcp for contract/amount, company and vote (K21), which turn the CRZ example above into
-    code.
+  - quick checks against lektyra's own public-data service for contract/amount, company and vote (K21, ADR-014),
+    which turn the CRZ example above into code.

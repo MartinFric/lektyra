@@ -22,8 +22,9 @@ Decided by Martin on 2026-11-14:
   2025, is close).
 - Rejected: IntelliVoice (live US mark, a VoIP company, "Intelligent Voice" doing speech-to-text in the UK) and
   IntelliSpeech (live US mark). "Intelli-" is a crowded, weak prefix.
-- Ownership: the repo lives in Martin's personal space, on his account, hardware and keys, with a copyright notice
-  and a proprietary LICENSE from the first commit. Martin's contract with BMG is checked for an IP clause. This plan now lives in the repo.
+- Ownership: lektyra is Martin Fric's personal project (ADR-014): his account, hardware and keys, a proprietary
+  LICENSE from the first commit, the repository `git@github.com:MartinFric/lektyra.git`. The original concept is
+  `docs/plans/concept.md`.
 
 **Goal of the spike.** Take archived TA3 videos with at least three people talking, Robert Fico among them, and:
 1. transcribe them with **several speech-to-text models** and measure which is best for Slovak;
@@ -138,8 +139,7 @@ Things the spike has to check, because OpenRouter normalises the API:
 
 ### Repo layout
 
-`C:\Work\dev-personal\lektyra` while it is a local experiment. It moves to the BMG organisation if PS adopts
-it.
+`C:\Work\dev-personal\lektyra`, pushed to `git@github.com:MartinFric/lektyra.git` (ADR-014).
 
 ```
 lektyra/
@@ -326,7 +326,7 @@ Then `docs/plans/board.md`, following Martin's board convention.
 | 5 | `eval` → **report 1: which engine** (WER, names, numbers, cost); **final round**: top 3 on all videos | docs/eval/…-stt.md |
 | 6 | DER → **report 2: diarization** | docs/eval/…-diarization.md |
 | 7–8 | embeddings ×2, `speakers`, `name`, `reject`, `identify`, `forget`; s-norm, thresholds; the profile test → **report 3: profiles** | docs/eval/…-profiles.md |
-| 9 | final report, ADR 6 "the chosen engine and embedding", board, the next proposal (live ingest, caption OCR, PS integration) | decision |
+| 9 | final report, ADR 6 "the chosen engine and embedding", board, the next proposal (live ingest, caption OCR, own public-data service) | decision |
 
 About 9 working days. Martin: about 2 hours of listening, plus naming the speakers.
 
@@ -342,8 +342,8 @@ About 9 working days. Martin: about 2 hours of listening, plus naming the speake
 ## 8. Phase 2: the live claims loop (the lekton)
 
 Martin's design (2026-11-14), with refinements. Every minute the new transcript piece goes through claim
-extraction. Only interesting, checkable claims are kept (numbers, companies, contracts, laws, votes): PS has the
-data to check exactly these. Every new minute also looks back at whether the previous extraction missed or cut
+extraction. Only interesting, checkable claims are kept (numbers, companies, contracts, laws, votes): public
+registers hold the data to check exactly these (ADR-014). Every new minute also looks back at whether the previous extraction missed or cut
 something. At the end, a pass over the whole event looks for what was missed, what compounds, and what was
 corrected later.
 
@@ -377,7 +377,7 @@ new minute of transcript (speakers S1…N, names where known)
   → triage score = checkability (do we have a source: CRZ, ministry invoices, NR SR votes and prints, finstat,
                    budget) × weight (magnitude, topic, speaker) × novelty (said before? already checked → reuse)
   → quick checks live (a database lookup: does this contract exist, what was its amount)
-     · deep checks queued (the PS agent with its skills, minutes per claim)
+     · deep checks queued (an agent with web search and the registers, minutes per claim)
 ```
 
 - **The ledger holds claims with stable ids and a status:** `candidate → normalised → triaged → checking → verdict
@@ -404,25 +404,21 @@ evaluates the live extractor for free.
 
 ### The person layer (once a speaker is identified)
 
-PS's existing sources come together around the person:
-- their earlier statements (our own transcript archive) and contradictions with them;
-- NR SR votes and bills (`nrsr_find`);
-- companies around them (finstat: ownership, boards) and those companies' contracts (CRZ, distilled contracts) and
-  ministry invoices;
-- party financing;
-- PS's earlier findings.
-
-lektyra stays standalone: it reads PS data through **ps-mcp** (as an MCP client with its own login), it does not
-live inside PS. That also keeps the ownership line clean.
+Public sources come together around the person, from lektyra's own public-data service (ADR-014):
+- their earlier statements (lektyra's own archive) and contradictions with them;
+- NR SR votes and bills;
+- companies around them (company registers: ownership, boards) and those companies' contracts (CRZ);
+- party financing, where it is published;
+- earlier verdicts on the same claims.
 
 ### Safeguards
 
 - **A misheard number makes a false verdict.** When a claim is picked for checking, its 20 seconds of audio go
   through the second-best engine once more. If the two engines disagree on a number or a name, the claim is
   flagged "verify the quote by ear". Every claim links to its second in the audio.
-- **Nothing leaves without a human.** The verdicts are drafts for PS's analysts.
-- **A person dossier is personal data**, even for a public figure in a public role. It stays within PS's existing
-  legal basis for its investigations, and the DPIA from the concept covers it.
+- **Nothing leaves without a human.** The verdicts are drafts until a reviewer confirms them.
+- **A person dossier is personal data**, even for a public figure in a public role. It needs a legal basis and the
+  DPIA from the concept (`concept.md` §4) before anyone else sees it.
 
 ### Built so that replay = live
 
@@ -434,9 +430,9 @@ answers, and needs no live stream until the very end.
 |---|---|---|
 | 2.1 | claim schema, ledger state machine, `step()`, replay of video A minute by minute | 2 days |
 | 2.2 | **gold set**: Martin marks the claims worth checking in A (est. 20–40); metrics: live recall and precision against gold, end-pass recall, minute-boundary cuts caught, latency per minute | 1 day + Martin ~1 h |
-| 2.3 | triage + quick checks against ps-mcp for 3 claim types: a contract or amount (CRZ), a company (finstat/CRZ), a vote (NR SR) | 2 days |
+| 2.3 | triage + quick checks against lektyra's own public-data service for 3 claim types: a contract or amount (CRZ), a company (registers/CRZ), a vote (NR SR) | 2 days + the service |
 | 2.4 | end-of-event pass, second-engine quote check, report → ADR "claims loop" | 1–2 days |
 | 2.5 | (after the spike) a real live stream, the person layer, the review screen for analysts | later |
 
 The extraction model per minute is a cheap fast one; HTN's correction pass uses gemini-3.1-flash-lite. That costs
-cents per hour. The deep checks by the PS agent are the real cost, and triage keeps their number down.
+cents per hour. The deep checks are the real cost, and triage keeps their number down.
