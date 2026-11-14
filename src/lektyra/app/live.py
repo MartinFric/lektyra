@@ -329,7 +329,7 @@ class LiveSession:
         with self._lock:
             self._turns = [LiveTurn(start_ms=t.start_ms, end_ms=t.end_ms, label=label_of(t.speaker)) for t in found]
             self._talk = talk
-        with self._review.lock:
+        with self._review.exclusive():
             self._store.upsert_event(
                 event_dir.name,
                 self._info.title if self._info else event_dir.name,

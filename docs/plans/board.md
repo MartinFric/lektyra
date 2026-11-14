@@ -22,6 +22,7 @@ The plan is the intent (`spike-plan.md`); this is the state. Ids `K<n>`, never r
 | K27 | **Guest profiles in advance** | doing | 2026-11-14 | ready to name in the real DB: Hlina and Takáč (rehearsal), Kuffa (9-min clip, transcribed), Fico (Voice 1, 5 videos), TA3 moderator (Voice 3, 4 videos) · STVR's guests optional (runbook step 3) |
 | K29 | **Live pipeline: claims every minute** | next | 2026-11-14 | voices now + words per piece done (K31) · for Sunday: run `lektyra claims` + `end-pass` on each recorded show right after it (replay = live) |
 | K47 | **UI: Fact check screen** | later | 2026-11-14 | after K37 (claims model) and K21/K22 · [mockup](https://claude.ai/artifact/1aFxRsPc2SAiooBCp6jiWA) |
+| K48 | **Several live sessions in one screen** | later | 2026-11-14 | today: one session per `lektyra ui`, more side by side on other ports, voices serialized by an advisory lock (ADR-013 §1, tested TA3 + STVR at once) · next: session tabs, one shared voice model |
 | K32 | **UI: split the bundle** (694 kB, react-markdown on every page) | later | 2026-11-14 | lazy routes for Documents and Voice map |
 | K39 | **The go/no-go number: share of claims in 5 real debates that public data can settle** (CRZ, NR SR votes, company registers, government data) | next | 2026-11-14 | market scan: under ~10 % the moat is thin · after K20 gold set and K21 |
 | K41 | **Demo package: Sunday's debates with numbers** (names, lag, cost, claims with sources) | next | 2026-11-14 | runs on Martin's PC; recorded |

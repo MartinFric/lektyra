@@ -12,7 +12,7 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
-from lektyra.adapters.store.postgres import Store, ensure_database, with_database
+from lektyra.adapters.store.postgres import VOICE_LOCK, Store, ensure_database, with_database
 from lektyra.adapters.web.api import create_app
 from lektyra.app.live import LiveManager
 from lektyra.app.review import Review
@@ -226,3 +226,14 @@ def test_live_guards(client: TestClient, tmp_path_factory: pytest.TempPathFactor
     assert _error(bad)["code"] == "invalid"  # only files from data/videos or a stream address
     assert client.post("/api/live/stop").status_code == 409
     assert client.get("/api/live/media").status_code == 404
+
+
+def test_voices_are_written_by_one_process_at_a_time(client: TestClient) -> None:
+    url = with_database(load_settings().database_url, "lektyra_test")
+    first = Store(url)
+    with psycopg.connect(url, autocommit=True) as other:  # stands in for a second `lektyra ui`
+        with first.exclusive(), first.exclusive():  # re-entrant within one process
+            assert other.execute("SELECT pg_try_advisory_lock(%s)", (VOICE_LOCK,)).fetchone() == (False,)
+        assert other.execute("SELECT pg_try_advisory_lock(%s)", (VOICE_LOCK,)).fetchone() == (True,)
+        other.execute("SELECT pg_advisory_unlock(%s)", (VOICE_LOCK,))
+    first.close()

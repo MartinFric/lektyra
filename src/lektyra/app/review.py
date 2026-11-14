@@ -8,6 +8,8 @@ every speaker Martin has not named is matched again, so one name can suggest the
 
 import re
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -222,9 +224,16 @@ class Review:
         self._store = store
         self._events = events_dir
         self._actor = actor
-        # Naming, re-matching and a live session's updates take turns: two of them founding a voice for the same
-        # speaker at once would leave an orphan.
-        self.lock = threading.RLock()
+        # Naming, re-matching and live sessions' updates take turns, within this process (the lock) and across
+        # processes (the store's advisory lock): two of them founding a voice for the same speaker would leave an
+        # orphan.
+        self._thread_lock = threading.RLock()
+
+    @contextmanager
+    def exclusive(self) -> Iterator[None]:
+        """Hold while writing voices; re-entrant."""
+        with self._thread_lock, self._store.exclusive():
+            yield
 
     # files ------------------------------------------------------------------------------------------------------
     def _dir(self, event_id: str) -> Path:
@@ -283,7 +292,7 @@ class Review:
         """Give every speaker a voice, oldest video first (ADR-012). A speaker that sounds like a known voice (named
         or not, ≥ ACCEPT) joins it; any other founds the next numbered voice from its own samples. Martin's names,
         founders and forgotten speakers are left alone."""
-        with self.lock:
+        with self.exclusive():
             self._refresh_guesses()
 
     def _refresh_guesses(self) -> None:
@@ -391,7 +400,7 @@ class Review:
         """Martin says who a speaker is (ADR-004, ADR-012). If the speaker belonged to an unnamed voice, that whole
         voice is this person: it merges into them, so every video it was heard in gets the name. The speaker's clean
         windows become confirmed samples, then everyone unnamed is matched again."""
-        with self.lock:
+        with self.exclusive():
             speaker = self._speaker(event_id, label)
             found = self._voice_files(self._dir(event_id))
             if found is None:
@@ -407,13 +416,13 @@ class Review:
             self._refresh_guesses()
 
     def unname_speaker(self, event_id: str, label: str) -> None:
-        with self.lock:
+        with self.exclusive():
             self._store.unassign(self._speaker(event_id, label), self._actor)
             self._refresh_guesses()
 
     def reject(self, event_id: str, label: str, person_id: int) -> None:
         """ "Not this person": the candidate never comes back for this speaker."""
-        with self.lock:
+        with self.exclusive():
             speaker = self._speaker(event_id, label)
             if speaker.status == "confirmed" and speaker.person_id == person_id:
                 raise LektyraError("conflict", "This speaker is named as that person. Remove the name first.")
@@ -429,7 +438,7 @@ class Review:
         return Person(**self._store.person(new_id).model_dump())
 
     def forget_person(self, person_id: int) -> None:
-        with self.lock:
+        with self.exclusive():
             self._store.forget_person(person_id, self._actor)
             self._refresh_guesses()
 

@@ -11,7 +11,10 @@ like a stream (ADR-007), so rehearsals are honest.
 
 ## Decision
 
-1. **One session at a time**, owned by `lektyra ui`. Source: a file in `data/videos/` (from `lektyra fetch`: TA3,
+1. **One session per `lektyra ui`**; several can run side by side on other ports (`--port 8766`), on the same
+   database and the same voice numbers. Voices are written by one process at a time (a Postgres advisory lock, held
+   while matching founds or joins voices), so two sessions never found the same voice twice. Tested: TA3 and STVR
+   live at once, 0 orphaned voices. Each session is owned by its `lektyra ui`. Source: a file in `data/videos/` (from `lektyra fetch`: TA3,
    YouTube, Facebook; 720p, copied, not re-encoded) or a stream address (`ta3:live`, https://…). Always read at live
    speed.
 2. **Voices now** (`domain/live_voices.py`): every second, the last 2 s, if at least 60 % of it is speech, is

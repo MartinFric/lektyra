@@ -26,6 +26,7 @@ SpeakerStatus = Literal["auto", "suggested", "unknown", "confirmed", "new"]
 FlagKind = Literal["words", "speaker", "name_number", "other"]
 PersonKind = Literal["politician", "host", "journalist", "expert", "official", "other"]
 ROBOT: Final = "lektyra"  # the actor of what matching does on its own
+VOICE_LOCK: Final = 4_851_302  # advisory lock key: who may write voices right now (ADR-012)
 
 
 class PersonFields(BaseModel):
@@ -160,6 +161,19 @@ class Store:
             conn = self._connection()
             with conn.transaction(), conn.cursor() as cur:
                 yield cur
+
+    @contextmanager
+    def exclusive(self) -> Iterator[None]:
+        """Voices are written by one process at a time, so two `lektyra ui` running live sessions side by side never
+        found the same voice twice. A session-level advisory lock on this store's connection; Postgres frees it by
+        itself if the connection or the process dies."""
+        with self._tx() as cur:
+            cur.execute("SELECT pg_advisory_lock(%s)", (VOICE_LOCK,))
+        try:
+            yield
+        finally:
+            with self._tx() as cur:
+                cur.execute("SELECT pg_advisory_unlock(%s)", (VOICE_LOCK,))
 
     def close(self) -> None:
         with self._lock:
