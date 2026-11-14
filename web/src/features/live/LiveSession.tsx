@@ -3,6 +3,7 @@ import { type RefObject, useRef, useState } from 'react';
 import { type Speaker, speakersQuery } from '@/features/events/api';
 import { SpeakerNaming } from '@/features/events/SpeakerNaming';
 import { ClaimsPanel } from '@/features/claims/ClaimsPanel';
+import { useClaims } from '@/features/claims/useClaims';
 import { FaceOf } from '@/features/persons/PersonFace';
 import { byLabel, speakerName } from '@/features/events/speakerName';
 import { flagsQuery, type Paragraph, transcriptQuery } from '@/features/transcript/api';
@@ -96,9 +97,7 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
       {eventId ? (
         <div className={styles.words}>
           <LiveTranscript state={state} eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} />
-          {state.transcribe ? (
-            <ClaimsPanel eventId={eventId} live speakers={byName} onSeek={state.media ? seek : null} />
-          ) : null}
+          {state.transcribe ? <LiveClaims eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} /> : null}
         </div>
       ) : null}
     </div>
@@ -349,4 +348,16 @@ function LiveTranscript({ state, eventId, speakers, onSeek }: TranscriptProps) {
       ) : null}
     </Card>
   );
+}
+
+interface LiveClaimsProps {
+  readonly eventId: string;
+  readonly speakers: ReadonlyMap<string, Speaker>;
+  readonly onSeek: ((ms: number) => void) | null;
+}
+
+/** The session's claims as they come, newest on top (K29). */
+function LiveClaims({ eventId, speakers, onSeek }: LiveClaimsProps) {
+  const claims = useClaims(eventId, true);
+  return <ClaimsPanel claims={claims} live speakers={speakers} onSeek={onSeek} />;
 }

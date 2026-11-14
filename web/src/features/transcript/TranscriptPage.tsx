@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { ClaimsPanel } from '@/features/claims/ClaimsPanel';
+import { claimsIn, currentClaim } from '@/features/claims/filter';
+import { useClaims } from '@/features/claims/useClaims';
 import { type EventDetail, eventQuery, isComplete, type Speaker, speakersQuery } from '@/features/events/api';
 import { SpeakerNaming } from '@/features/events/SpeakerNaming';
 import { byLabel, speakerName } from '@/features/events/speakerName';
@@ -58,6 +60,11 @@ function TranscriptView({ event, variant, transcript }: ViewProps) {
   const flags = useQuery(flagsQuery(event.id, variant));
   const [follow, setFollow] = useState(true);
   const [flagging, setFlagging] = useState<Paragraph | null>(null);
+  const claims = useClaims(event.id, false);
+  const [picked, setPicked] = useState<string | null>(null);
+  const byTime = [...claims.shown].sort((a, b) => a.at_ms - b.at_ms);
+  const heard = currentClaim(byTime, player.now);
+  const highlight = player.playing ? (heard?.id ?? null) : picked;
   const byName = byLabel(speakers.data ?? []);
   const active = lastStartedAt(transcript.paragraphs, player.now);
   const current = activeAt(transcript.turns, player.now);
@@ -101,7 +108,12 @@ function TranscriptView({ event, variant, transcript }: ViewProps) {
 
       <div className={styles.sticky}>
         {event.has_audio ? (
-          <PlayerBar player={player} turns={transcript.turns} src={apiUrl(`/events/${seg(event.id)}/audio`)} />
+          <PlayerBar
+            player={player}
+            turns={transcript.turns}
+            src={apiUrl(`/events/${seg(event.id)}/audio`)}
+            marks={claims.shown}
+          />
         ) : (
           <Card>
             <EmptyState icon="alert" title="No audio for this video">The transcript can be read; it cannot be played.</EmptyState>
@@ -130,6 +142,8 @@ function TranscriptView({ event, variant, transcript }: ViewProps) {
               follow={follow && player.playing}
               onSeek={(ms) => { player.seek(ms); }}
               onFlag={setFlagging}
+              claimsIn={(p) => claimsIn(claims.shown, p.start_ms, p.end_ms).length}
+              onClaims={(p) => { setPicked(claimsIn(claims.shown, p.start_ms, p.end_ms)[0]?.id ?? null); }}
             />
           )}
         </Card>
@@ -140,7 +154,15 @@ function TranscriptView({ event, variant, transcript }: ViewProps) {
             <NowSpeaking eventId={event.id} label={current?.label} speakers={byName} />
           </Card>
 
-          <ClaimsPanel eventId={event.id} speakers={byName} onSeek={(ms) => { player.seek(ms); }} />
+          <ClaimsPanel
+            claims={claims}
+            speakers={byName}
+            highlight={highlight}
+            onSeek={(ms) => {
+              player.seek(ms);
+              setPicked(byTime.find((c) => c.at_ms === ms)?.id ?? null);
+            }}
+          />
 
           <Card>
             <CardHeader title="Speakers" subtitle="Colours match the timeline" />

@@ -15,11 +15,14 @@ interface ParagraphsProps {
   readonly follow: boolean;
   readonly onSeek: (ms: number) => void;
   readonly onFlag: (paragraph: Paragraph) => void;
+  /** How many shown claims a paragraph holds (K29); a chip on it picks them in the claims panel. */
+  readonly claimsIn?: (paragraph: Paragraph) => number;
+  readonly onClaims?: (paragraph: Paragraph) => void;
 }
 
 /** The transcript as people read it: who, when, what. The paragraph being heard is marked and, with `follow`,
  * kept in view by a ref callback that runs only when the active paragraph changes (no effect). */
-export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek, onFlag }: ParagraphsProps) {
+export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek, onFlag, claimsIn, onClaims }: ParagraphsProps) {
   const keepInView = useCallback(
     (el: HTMLElement | null) => {
       if (el && follow && el.dataset.index === String(active)) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -50,6 +53,11 @@ export function Paragraphs({ paragraphs, speakers, flags, active, follow, onSeek
             <div className={styles.body}>
               {sameSpeaker ? null : <SpeakerTag name={name} speaker={speakers.get(p.label)} />}
               <p className={styles.text}>{p.text}</p>
+              {claimsIn && claimsIn(p) > 0 ? (
+                <button type="button" className={styles.claimChip} onClick={() => { onClaims?.(p); }} title="Show them in the claims panel">
+                  {claimsIn(p) === 1 ? '1 claim' : `${String(claimsIn(p))} claims`}
+                </button>
+              ) : null}
               {flagged.length > 0 ? (
                 <div className={styles.flags}>
                   {flagged.map((f) => (

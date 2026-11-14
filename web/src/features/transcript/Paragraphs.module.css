@@ -166,3 +166,20 @@
   color: var(--text);
   font-style: italic;
 }
+
+.claimChip {
+  justify-self: start;
+  height: 22px;
+  padding: 0 var(--s2);
+  border: 1px solid color-mix(in srgb, var(--claim) 40%, var(--line));
+  border-radius: var(--radius-pill);
+  background: var(--claim-soft);
+  color: var(--claim);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.claimChip:hover {
+  border-color: var(--claim);
+}

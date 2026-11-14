@@ -7,14 +7,22 @@ import type { Player } from './usePlayer';
 
 const RATES = [1, 1.25, 1.5, 2] as const;
 
+export interface ClaimMark {
+  readonly id: string;
+  readonly at_ms: number;
+  readonly worth: number;
+}
+
 interface PlayerBarProps {
   readonly player: Player;
   readonly turns: readonly Turn[];
   readonly src: string;
+  /** Claims shown in the claims panel, as ticks over the timeline: where they cluster, at a glance. */
+  readonly marks?: readonly ClaimMark[];
 }
 
 /** Play, skip, speed, and a timeline coloured by who speaks: a click anywhere on it jumps there. */
-export function PlayerBar({ player, turns, src }: PlayerBarProps) {
+export function PlayerBar({ player, turns, src, marks = [] }: PlayerBarProps) {
   const { now, duration, playing } = player;
   const total = Math.max(duration, 1);
 
@@ -76,6 +84,13 @@ export function PlayerBar({ player, turns, src }: PlayerBarProps) {
               width: `${String(Math.max(0.15, ((t.end_ms - t.start_ms) / total) * 100))}%`,
               background: voiceColor(t.label),
             }}
+          />
+        ))}
+        {marks.map((m) => (
+          <span
+            key={m.id}
+            className={styles.mark}
+            style={{ left: `${String((m.at_ms / total) * 100)}%`, opacity: String(0.35 + m.worth * 0.65) }}
           />
         ))}
         <span className={styles.head} style={{ left: `${String(Math.min(100, (now / total) * 100))}%` }} />

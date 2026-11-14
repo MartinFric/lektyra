@@ -4,8 +4,91 @@
 }
 
 .head {
-  padding: var(--s4) var(--s4) var(--s2);
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s4) var(--s4) var(--s3);
   border-bottom: 1px solid var(--line);
+}
+
+.filters {
+  display: grid;
+  gap: var(--s2);
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.worth {
+  flex: 1;
+  min-width: 0;
+  height: var(--control-h-sm);
+  font-size: var(--text-sm);
+}
+
+.sort {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+
+.sortButton {
+  height: calc(var(--control-h-sm) - 2px);
+  padding: 0 var(--s2);
+  border: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.sortButton[aria-pressed='true'] {
+  background: var(--signal-soft);
+  color: var(--signal-strong);
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--s2) 0 3px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.chip[data-kind] {
+  padding-left: var(--s2);
+}
+
+.chip:hover {
+  background: var(--surface-hover);
+}
+
+.chip[aria-pressed='true'] {
+  border-color: var(--signal);
+  background: var(--signal-soft);
+  color: var(--signal-strong);
+  font-weight: 600;
+}
+
+.count {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 .pad {
@@ -22,6 +105,7 @@
 }
 
 .list {
+  position: relative; /* the current claim is scrolled into view inside the list */
   display: grid;
   max-height: 560px;
   margin: 0;
@@ -33,16 +117,19 @@
 .item {
   display: grid;
   gap: var(--s1);
-  padding: var(--s3) 0;
+  padding: var(--s3) var(--s2);
+  margin: 0 calc(-1 * var(--s2));
   border-top: 1px solid var(--line);
+  border-radius: var(--radius-sm);
 }
 
 .item:first-child {
   border-top: 0;
 }
 
-.item[data-withdrawn] {
-  opacity: 0.55;
+.item[data-current] {
+  background: var(--claim-soft);
+  box-shadow: inset 3px 0 0 var(--claim);
 }
 
 .meta {
@@ -80,10 +167,15 @@ span.time {
   flex: 1;
 }
 
-.worth {
+.worthValue {
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+}
+
+.worthValue[data-high] {
+  color: var(--claim);
+  font-weight: 700;
 }
 
 .lekton {
