@@ -12,6 +12,8 @@
 *.mkv
 *.ts
 !*.d.ts
+# ...but TypeScript is code: *.ts above means video segments (MPEG-TS), never the UI's sources
+!/web/**/*.ts
 *.npy
 *.npz
 *.pt
