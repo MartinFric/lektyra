@@ -220,6 +220,15 @@ def test_errors_have_one_shape(client: TestClient) -> None:
     assert client.put(f"/api/events/{ONE}/ratings/{VARIANT}", json={"accuracy": 7}).status_code == 422
 
 
+def test_a_body_that_is_not_utf8_is_the_senders_error_not_the_servers(client: TestClient) -> None:
+    # 2026-11-14: a Windows shell sent "Š" as cp1250 (0x8a); the server answered 500 "something went wrong".
+    answer = client.post(
+        "/api/persons", content=b'{"name": "\x8avevulova"}', headers={"content-type": "application/json"}
+    )
+    assert answer.status_code == 422
+    assert _error(answer)["code"] == "invalid"
+
+
 def test_ratings_and_flags(client: TestClient) -> None:
     rated = client.put(f"/api/events/{ONE}/ratings/{VARIANT}", json={"accuracy": 4, "note": "fine"})
     assert rated.status_code == 200

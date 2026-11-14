@@ -151,6 +151,9 @@ def _install_errors(app: FastAPI) -> None:
             return _error("not_found", "Nothing here.")
         if isinstance(exc, HTTPException) and exc.status_code == 405:
             return _error("invalid", "This action is not allowed here.")
+        if isinstance(exc, HTTPException) and 400 <= exc.status_code < 500:
+            # The sender's mistake (e.g. a body that is not UTF-8 JSON), never "something went wrong on the server".
+            return _error("invalid", "The request could not be read: send UTF-8 JSON.")
         return await internal_error(_, exc)
 
     async def database_error(_: Request, exc: Exception) -> JSONResponse:
