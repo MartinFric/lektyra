@@ -429,9 +429,10 @@ class Review:
         heard = [s for s in self._store.speakers() if s.person_id == person_id and s.event_id in titles]
         heard.reverse()  # newest video first
         heard.sort(key=lambda s: s.status != "confirmed")  # stable: confirmed ones lead
+        per_video = max(CLIPS_PER_VIDEO, -(-PERSON_CLIPS // max(1, len(heard))))  # a voice of one video gets 6 from it
         clips: list[Clip] = []
         for s in heard:
-            clips += self._clips_of(s.event_id, titles[s.event_id], s.label, CLIPS_PER_VIDEO)
+            clips += self._clips_of(s.event_id, titles[s.event_id], s.label, per_video)
             if len(clips) >= PERSON_CLIPS:
                 break
         return clips[:PERSON_CLIPS]
