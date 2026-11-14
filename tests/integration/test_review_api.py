@@ -530,3 +530,12 @@ def test_claims_said_by_a_host_are_left_out(client: TestClient) -> None:
     client.put(f"/api/persons/{epsilon.id}", json={"name": "Epsilon Person", "kind": "host"})
     seen = client.get(url).json()
     assert ([c["id"] for c in seen["claims"]], seen["hidden_host"]) == (["c1"], 1)
+
+
+def test_the_audience_is_left_out_of_claims_like_a_host(client: TestClient) -> None:
+    epsilon = _person(client, "Epsilon Person")
+    assert (
+        client.put(f"/api/persons/{epsilon.id}", json={"name": "Epsilon Person", "kind": "audience"}).status_code == 200
+    )
+    seen = client.get(f"/api/events/{ONE}/claims").json()
+    assert ([c["id"] for c in seen["claims"]], seen["hidden_host"]) == (["c1"], 1)

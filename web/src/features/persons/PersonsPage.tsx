@@ -5,7 +5,7 @@ import { count } from '@/platform/format';
 import { Badge, Button, Card, EmptyState, Icon, PageHeader, QueryView, Skeleton, TextInput } from '@/platform/ui';
 import { ReelButton } from '@/features/voices/Reel';
 import { useReel } from '@/features/voices/reelContext';
-import { KIND_LABELS, type Person, personsQuery } from './api';
+import { isRecurring, KIND_LABELS, type Person, personsQuery, RECURRING_AFTER } from './api';
 import { PersonFace } from './PersonFace';
 import { PersonForm } from './PersonForm';
 import styles from './PersonsPage.module.css';
@@ -102,7 +102,7 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
     return <EmptyState icon="search" title="No match">Nobody matches “{filter}”.</EmptyState>;
   }
   const people = shown.filter((p) => !p.anonymous);
-  const voices = shown.filter((p) => p.anonymous);
+  const voices = shown.filter((p) => p.anonymous).sort((a, b) => Number(isRecurring(b)) - Number(isRecurring(a)));
   const rows = (list: readonly Person[]) =>
     list.map((p) => (
       <li key={p.id} className={styles.item}>
@@ -117,11 +117,18 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
             <span className={styles.name}>{p.name}</span>
             <span className={styles.meta}>
               {p.anonymous
-                ? 'not named yet'
+                ? p.kind === 'other'
+                  ? 'not named yet'
+                  : KIND_LABELS[p.kind]
                 : [KIND_LABELS[p.kind], p.function, p.party].filter(Boolean).join(' · ')}
             </span>
           </span>
           <span className={styles.badges}>
+            {isRecurring(p) ? (
+              <Badge tone="claim" title={`Heard in more than ${String(RECURRING_AFTER)} videos: worth naming`}>
+                recurring
+              </Badge>
+            ) : null}
             {p.samples > 0 ? (
               <Badge tone="signal" title="Voice samples">
                 {count(p.samples, 'sample')}

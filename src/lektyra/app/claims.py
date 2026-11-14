@@ -111,8 +111,8 @@ def speakers_note(roles: Mapping[str, str] | None) -> str:
         return ""
     lines = "\n".join(f"{label}: {who}" for label, who in sorted(roles.items()))
     return (
-        "SPEAKERS (as recognised by voice; a host or moderator asks and sums up: never add a claim said by a host, "
-        f"only by the guests):\n{lines}\n\n"
+        "SPEAKERS (as recognised by voice; a host or moderator asks and sums up, the audience reacts: never add a "
+        f"claim said by a host or by the audience, only by the guests):\n{lines}\n\n"
     )
 
 

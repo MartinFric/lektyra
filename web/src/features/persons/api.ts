@@ -2,7 +2,7 @@ import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query
 import { z } from 'zod';
 import { apiRequest, apiSend, apiUrl, seg } from '@/platform/api';
 
-export const PERSON_KINDS = ['politician', 'host', 'journalist', 'expert', 'official', 'other'] as const;
+export const PERSON_KINDS = ['politician', 'host', 'journalist', 'expert', 'official', 'audience', 'other'] as const;
 export const personKind = z.enum(PERSON_KINDS);
 export type PersonKind = z.infer<typeof personKind>;
 
@@ -12,6 +12,7 @@ export const KIND_LABELS: Record<PersonKind, string> = {
   journalist: 'Journalist',
   expert: 'Expert',
   official: 'Official',
+  audience: 'Audience / public',
   other: 'Other',
 };
 
@@ -47,6 +48,13 @@ export type PersonPhoto = NonNullable<Person['photo']>;
  * for ever. */
 export function photoUrl(personId: number, photo: PersonPhoto): string {
   return `${apiUrl(`/persons/${seg(personId)}/photo`)}?v=${encodeURIComponent(photo.version)}`;
+}
+
+/** An unnamed voice heard in more videos than this is recurring: worth naming (Martin). */
+export const RECURRING_AFTER = 3;
+
+export function isRecurring(p: Pick<Person, 'anonymous' | 'events'>): boolean {
+  return p.anonymous && p.events > RECURRING_AFTER;
 }
 
 export const MAX_PHOTO_BYTES = 15_000_000;

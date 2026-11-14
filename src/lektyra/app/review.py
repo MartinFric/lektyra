@@ -155,7 +155,7 @@ class ClaimsView(BaseModel):
     stage: Literal["none", "live", "final"]  # final: after the end pass (links, duplicates, what live missed)
     minutes: int
     claims: list[ClaimOut]
-    hidden_host: int = 0  # claims said by a host, left out (K60): a host asks and sums up
+    hidden_host: int = 0  # claims said by a host or the audience, left out (K60): they ask, sum up, react
 
 
 class Paragraph(BaseModel):
@@ -270,6 +270,9 @@ class _VoiceFiles:
             return None
         labels = assign(self.windows, self.centres)
         return profile_samples(self.windows, labels, index, self.centres[index], min_windows=min_windows)
+
+
+SKIPPED_KINDS: Final = ("host", "audience")  # their words are not claims (K60)
 
 
 class _Ledger(BaseModel):
@@ -652,8 +655,8 @@ class Review:
         )
 
     def _host_labels(self, event_id: str) -> set[str]:
-        """Speakers recognised as a host (a person of kind host): what they say is not a claim (K60). The ledger keeps
-        their claims, so ids stay as the saved answers know them; the view leaves them out."""
+        """Speakers recognised as a host or the audience (a person or voice of that kind): what they say is not a claim
+        (K60). The ledger keeps their claims, so ids stay as the saved answers know them; the view leaves them out."""
         persons = {p.id: p for p in self._store.persons()}
         return {
             s.label
@@ -661,7 +664,7 @@ class Review:
             if s.person_id is not None
             and s.status in ("confirmed", "auto", "new")
             and (p := persons.get(s.person_id)) is not None
-            and p.kind == "host"
+            and p.kind in SKIPPED_KINDS
         }
 
     # transcripts ------------------------------------------------------------------------------------------------

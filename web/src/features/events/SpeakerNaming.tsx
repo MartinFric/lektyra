@@ -1,4 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
+import { isRecurring, personsQuery, RECURRING_AFTER } from '@/features/persons/api';
 import { FaceOf } from '@/features/persons/PersonFace';
 import { PersonPicker } from '@/features/persons/PersonPicker';
 import { similarity } from '@/platform/format';
@@ -34,6 +36,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
   const reject = useRejectCandidate(eventId);
   const clear = useClearMixed(eventId);
   const [mixing, setMixing] = useState(false);
+  const persons = useQuery(personsQuery);
   const busy = name.isPending || unname.isPending || reject.isPending || clear.isPending;
   const hints = speaker.candidates.map((c) => ({ personId: c.person_id, score: c.score }));
   const pick = (p: Who) => {
@@ -107,6 +110,7 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
   if (current && speaker.person_anonymous) {
     const closest = speaker.candidates.find((c) => c.person_id !== current.id && c.score >= 0.55);
     const heardBefore = speaker.status === 'auto';
+    const voice = persons.data?.find((p) => p.id === current.id);
     return row(
       <>
         {showName ? (
@@ -115,6 +119,12 @@ export function SpeakerNaming({ eventId, speaker, compact = false, showName = tr
             <strong className={styles.voiceName}>{current.name}</strong>
           </>
         ) : null}
+        {voice && isRecurring(voice) ? (
+          <Badge tone="claim" title={`Heard in more than ${String(RECURRING_AFTER)} videos: worth naming`}>
+            recurring · {voice.events} videos
+          </Badge>
+        ) : null}
+        {voice?.kind === 'audience' ? <Badge title="What the audience says is not a claim">audience</Badge> : null}
         {heardBefore ? (
           <Badge tone="signal" title="Matched to this voice from another video">
             heard before · {similarity(speaker.score ?? 0)}

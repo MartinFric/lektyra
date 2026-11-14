@@ -513,7 +513,8 @@ def speaker_roles(store: Store, event_id: str) -> dict[str, str]:
     roles: dict[str, str] = {}
     for s in store.speakers(event_id):
         person = persons.get(s.person_id) if s.person_id is not None else None
-        if person is not None and not person.anonymous and s.status in ("confirmed", "auto", "new"):
+        known = person is not None and (not person.anonymous or person.kind in ("host", "audience"))
+        if person is not None and known and s.status in ("confirmed", "auto", "new"):
             roles[s.label] = f"{person.name} ({person.kind})"
     return roles
 

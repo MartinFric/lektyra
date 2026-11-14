@@ -44,7 +44,7 @@ export function ClaimsPanel({ claims, live = false, speakers, onSeek, highlight 
             query.data?.model
               ? `${query.data.model.split('/').at(-1) ?? query.data.model} · ${
                   query.data.stage === 'final' ? 'after the end pass' : `read up to minute ${String(query.data.minutes)}`
-                }${query.data.hidden_host > 0 ? ` · ${String(query.data.hidden_host)} by the host left out` : ''} · not checked yet`
+                }${query.data.hidden_host > 0 ? ` · ${String(query.data.hidden_host)} by hosts or audience left out` : ''} · not checked yet`
               : 'What can be checked, minute by minute. Not checked yet.'
           }
         />
