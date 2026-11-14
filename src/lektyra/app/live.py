@@ -1,4 +1,4 @@
-"""A live session (ADR-013): one stream at a time, heard in real time, with voices known as they speak.
+"""Live sessions (ADR-013, ADR-016): streams heard in real time, several at once, with voices known as they speak.
 
 The same ingest as everywhere (ADR-007) reads the source at live speed and cuts pieces in quiet moments, shorter
 than for archives so words arrive sooner. Alongside it:
@@ -11,12 +11,16 @@ than for archives so words arrive sooner. Alongside it:
 - **words per piece**: each finished piece goes to speech-to-text in the background (ElevenLabs, ~$0.22 an hour).
 
 When the stream ends (or Stop is pressed) the event is an ordinary video: transcript, speakers, names.
+
+Several sessions run side by side (a scheduled TA3 run while STVR is on): each has its own threads and voice model;
+their voice updates take turns behind the review's lock, so two sessions never found the same voice twice.
 """
 
 import json
 import logging
 import queue
 import threading
+import uuid
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +54,9 @@ NOW_MS: Final = 2_500  # a speaker heard this recently is "speaking now"
 TAIL_MS: Final = 4_000
 RECENT_TURNS: Final = 80
 STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:", "pc:sound")
+UPLOAD_PREFIX: Final = "upload:"  # a video uploaded to lektyra's MinIO, played as live
+MAX_SESSIONS: Final = 4  # at once; each one fingerprints a window every second
+KEEP_ENDED: Final = 12  # ended sessions still shown, newest first
 MEDIA_TYPES: Final = {
     ".mp4": "video/mp4",
     ".webm": "video/webm",
@@ -84,13 +91,8 @@ class LiveDevices(BaseModel):
     default: str | None
 
 
-class LiveSource(BaseModel):
-    name: str
-    size: int
-    kind: Literal["video", "audio"]
-
-
 class LiveState(BaseModel):
+    id: str
     status: LiveStatus
     message: str
     source: str
@@ -130,7 +132,10 @@ class LiveSession:
     def __init__(
         self, *, settings: Settings, store: Store, review: Review, source: str, title: str | None,
         media_path: Path | None, transcribe: bool, api_key: SecretStr | None, make_embedder: MakeEmbedder,
+        shown_source: str | None = None,
     ) -> None:  # fmt: skip
+        self.id = uuid.uuid4().hex[:12]
+        self._shown_source = shown_source or source  # what Martin picked (upload:…), not the cache path
         self._settings = settings
         self._store = store
         self._review = review
@@ -167,7 +172,7 @@ class LiveSession:
 
     # control ----------------------------------------------------------------------------------------------------
     def start(self) -> None:
-        threading.Thread(target=self._run, name="lektyra-live", daemon=True).start()
+        threading.Thread(target=self._run, name=f"lektyra-live-{self.id}", daemon=True).start()
 
     def stop(self) -> None:
         with self._lock:
@@ -186,7 +191,7 @@ class LiveSession:
         try:
             self._embed, self._model = self._make_embedder()
             if self._transcribe:
-                worker = threading.Thread(target=self._stt_loop, name="lektyra-live-stt", daemon=True)
+                worker = threading.Thread(target=self._stt_loop, name=f"lektyra-stt-{self.id}", daemon=True)
                 worker.start()
             with self._lock:
                 if self._status == "loading":
@@ -369,9 +374,10 @@ class LiveSession:
             ]
             info = self._info
             return LiveState(
+                id=self.id,
                 status=self._status,
                 message=self._message,
-                source=self._source,
+                source=self._shown_source,
                 title=info.title if info else self._title,
                 event_id=self._event_dir.name if self._event_dir else None,
                 is_live=info.is_live if info else None,
@@ -409,36 +415,44 @@ def _replace_npz(path: Path, windows: np.ndarray, emb: Matrix) -> None:
     tmp.replace(path)
 
 
-def _playable(path: Path) -> bool:
-    """A finished media file; downloads in progress (`.part`) are not offered."""
-    return path.is_file() and path.suffix.lower() in MEDIA_TYPES and ".part" not in path.name
+SOURCES_HINT: Final = (
+    "Pick a live channel (ta3:live, stvr:1, stvr:2), a YouTube or Facebook address, PC sound or an uploaded video."
+)
 
 
-def _kind(path: Path) -> Literal["video", "audio"]:
-    return "video" if path.suffix.lower() in (".mp4", ".webm") else "audio"
+def check_source(source: str) -> None:
+    """Only what a session can open: a live channel, an address, PC sound or an upload; never a path on this PC."""
+    if not (source.startswith(STREAM_PREFIXES) or source.startswith(UPLOAD_PREFIX)):
+        raise LektyraError("invalid", SOURCES_HINT)
+    if source.startswith("stvr:") and source not in ("stvr:1", "stvr:2"):
+        raise LektyraError("invalid", "STVR live is stvr:1 (Jednotka) or stvr:2 (Dvojka).")
+
+
+def media_type(path: Path) -> str:
+    return MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
+
+ResolveUpload = Callable[[str], Path]
 
 
 class LiveManager:
-    """One live session at a time, owned by the UI server."""
+    """The live sessions of this UI server: up to MAX_SESSIONS at once, each with an id."""
 
-    def __init__(self, settings: Settings, store: Store, review: Review, make_embedder: MakeEmbedder) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        store: Store,
+        review: Review,
+        make_embedder: MakeEmbedder,
+        resolve_upload: ResolveUpload | None = None,
+    ) -> None:
         self._settings = settings
         self._store = store
         self._review = review
         self._make_embedder = make_embedder
-        self._session: LiveSession | None = None
+        self._resolve_upload = resolve_upload
+        self._sessions: dict[str, LiveSession] = {}
         self._lock = threading.Lock()
-
-    @property
-    def videos_dir(self) -> Path:
-        return self._settings.data_dir / "videos"
-
-    def sources(self) -> list[LiveSource]:
-        """Files in data/videos/ the UI can play next to a session (`lektyra fetch` puts them there)."""
-        folder = self.videos_dir
-        files = [f for f in folder.iterdir() if _playable(f)] if folder.is_dir() else []
-        files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-        return [LiveSource(name=f.name, size=f.stat().st_size, kind=_kind(f)) for f in files]
 
     def devices(self) -> LiveDevices:
         """The PC's sound outputs a session can listen to (`pc:sound:<name>`, K28)."""
@@ -446,46 +460,65 @@ class LiveManager:
         return LiveDevices(devices=names, default=default)
 
     def start(self, source: str, title: str | None, transcribe: bool) -> LiveState:
+        check_source(source)
+        media: Path | None = None
+        target = source
+        if source.startswith(UPLOAD_PREFIX):
+            if self._resolve_upload is None:
+                raise LektyraError("unavailable", "Uploaded videos are not available in this server.")
+            media = self._resolve_upload(source.removeprefix(UPLOAD_PREFIX))  # a local copy, fetched if needed
+            target = str(media)
+        key = self._settings.openrouter_api_key
+        if transcribe and key is None:
+            raise LektyraError("invalid", "No OpenRouter key in ~/.secrets/lektyra.env: start without transcription.")
         with self._lock:
-            if self._session is not None and self._session.active:
-                raise LektyraError("conflict", "A live session is already running. Stop it first.")
-            media: Path | None = None
-            names = {s.name for s in self.sources()}
-            if source in names:
-                media = self.videos_dir / source
-                target = str(media)
-            elif source.startswith(STREAM_PREFIXES):
-                target = source
-            else:
-                raise LektyraError(
-                    "invalid",
-                    "Pick a file from data/videos, a stream address (ta3:live, stvr:1, https://…) or pc:sound.",
-                )
-            key = self._settings.openrouter_api_key
-            if transcribe and key is None:
-                raise LektyraError(
-                    "invalid", "No OpenRouter key in ~/.secrets/lektyra.env: start without transcription."
-                )
+            running = [s for s in self._sessions.values() if s.active]
+            if len(running) >= MAX_SESSIONS:
+                raise LektyraError("conflict", f"{MAX_SESSIONS} sessions are running already. Stop one first.")
+            if source.startswith("pc:sound") and any(s.snapshot().source.startswith("pc:sound") for s in running):
+                raise LektyraError("conflict", "PC sound is being listened to already: one session per sound output.")
             session = LiveSession(
                 settings=self._settings, store=self._store, review=self._review, source=target, title=title,
                 media_path=media, transcribe=transcribe, api_key=key, make_embedder=self._make_embedder,
+                shown_source=source,
             )  # fmt: skip
-            self._session = session
-            session.start()
-            return session.snapshot()
+            self._sessions[session.id] = session
+            ended = [s for s in self._sessions.values() if not s.active]
+            for old in ended[: max(0, len(ended) - KEEP_ENDED)]:
+                del self._sessions[old.id]
+        session.start()
+        return session.snapshot()
 
-    def stop(self) -> LiveState:
-        session = self._session
-        if session is None or not session.active:
-            raise LektyraError("conflict", "No live session is running.")
+    def _session(self, session_id: str) -> LiveSession:
+        session = self._sessions.get(session_id)
+        if session is None:
+            raise LektyraError("not_found", "No such live session. lektyra may have been restarted.")
+        return session
+
+    def stop(self, session_id: str) -> LiveState:
+        session = self._session(session_id)
+        if not session.active:
+            raise LektyraError("conflict", "This session is not running.")
         session.stop()
         return session.snapshot()
 
-    def state(self) -> LiveState | None:
-        return self._session.snapshot() if self._session else None
+    def state(self, session_id: str) -> LiveState | None:
+        session = self._sessions.get(session_id)
+        return session.snapshot() if session else None
 
-    def media(self) -> tuple[Path, str]:
-        session = self._session
-        if session is None or session.media_path is None:
+    def sessions(self) -> list[LiveState]:
+        """Running sessions first, then ended ones; newest first within each."""
+        states = [s.snapshot() for s in list(self._sessions.values())]
+        return sorted(
+            states, key=lambda s: (s.status not in ("loading", "running", "stopping"), -s.started_at.timestamp())
+        )
+
+    def uses(self, source: str) -> bool:
+        """Is a running session reading this source (an upload about to be deleted)?"""
+        return any(s.active and s.snapshot().source == source for s in list(self._sessions.values()))
+
+    def media(self, session_id: str) -> tuple[Path, str]:
+        session = self._session(session_id)
+        if session.media_path is None:
             raise LektyraError("not_found", "This session has no local file to play.")
-        return session.media_path, MEDIA_TYPES.get(session.media_path.suffix.lower(), "application/octet-stream")
+        return session.media_path, media_type(session.media_path)

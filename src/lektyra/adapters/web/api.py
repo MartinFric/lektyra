@@ -10,6 +10,7 @@ Messages are for Martin and never carry a key, a voice or a stack trace; the tra
 
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -24,7 +25,7 @@ from starlette.exceptions import HTTPException
 
 from lektyra.adapters.images.pictures import MAX_BYTES
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
-from lektyra.app.live import LiveDevices, LiveManager, LiveSource, LiveState
+from lektyra.app.live import UPLOAD_PREFIX, LiveDevices, LiveManager, LiveState
 from lektyra.app.photos import Photos
 from lektyra.app.review import (
     Clip,
@@ -39,6 +40,9 @@ from lektyra.app.review import (
     Transcript,
     VoicePoint,
 )
+from lektyra.app.schedule import Run, Scheduler
+from lektyra.app.uploads import MAX_BYTES as MAX_UPLOAD
+from lektyra.app.uploads import Upload, Uploads, clean_name
 from lektyra.errors import STATUS, Code, LektyraError
 
 log = logging.getLogger("lektyra.api")
@@ -119,6 +123,14 @@ class LiveStartIn(BaseModel):
     transcribe: bool = True
 
 
+class RunIn(BaseModel):
+    source: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    title: Name
+    starts_at: datetime
+    ends_at: datetime
+    transcribe: bool = True
+
+
 class TextOut(BaseModel):
     name: str
     text: str
@@ -178,7 +190,7 @@ def _install_errors(app: FastAPI) -> None:
     app.add_exception_handler(Exception, internal_error)
 
 
-def _router(review: Review, live: LiveManager, photos: Photos) -> APIRouter:
+def _router(review: Review, live: LiveManager, photos: Photos, uploads: Uploads, schedule: Scheduler) -> APIRouter:
     api = APIRouter(prefix="/api", responses={400: {"model": ErrorEnvelope}})
 
     @api.get("/health")
@@ -319,14 +331,10 @@ def _router(review: Review, live: LiveManager, photos: Photos) -> APIRouter:
     def voices() -> list[VoicePoint]:
         return review.voices()
 
-    # live
-    @api.get("/live")
-    def live_state() -> LiveState | None:
-        return live.state()
-
-    @api.get("/live/sources")
-    def live_sources() -> list[LiveSource]:
-        return live.sources()
+    # live sessions (ADR-013, ADR-016: several at once)
+    @api.get("/live/sessions")
+    def live_sessions() -> list[LiveState]:
+        return live.sessions()
 
     @api.get("/live/devices")
     def live_devices() -> LiveDevices:
@@ -336,14 +344,59 @@ def _router(review: Review, live: LiveManager, photos: Photos) -> APIRouter:
     def live_start(body: LiveStartIn) -> LiveState:
         return live.start(body.source, body.title or None, body.transcribe)
 
-    @api.post("/live/stop")
-    def live_stop() -> LiveState:
-        return live.stop()
+    @api.post("/live/{session_id}/stop")
+    def live_stop(session_id: str) -> LiveState:
+        return live.stop(session_id)
 
-    @api.get("/live/media", response_class=FileResponse)
-    def live_media() -> FileResponse:
-        path, media_type = live.media()
+    @api.get("/live/{session_id}/media", response_class=FileResponse)
+    def live_media(session_id: str) -> FileResponse:
+        path, media_type = live.media(session_id)
         return FileResponse(path, media_type=media_type)
+
+    # videos uploaded to play as live (ADR-016)
+    @api.get("/uploads")
+    def list_uploads() -> list[Upload]:
+        return uploads.list()
+
+    @api.put("/uploads", status_code=201)
+    async def upload_video(request: Request, name: str) -> Upload:
+        """The body is the file itself; `name` is its file name. Written to disk as it arrives, then to MinIO."""
+        clean_name(name)  # refuse an unplayable file before reading gigabytes of it
+        part = uploads.temp_file()
+        try:
+            size = 0
+            with part.open("wb") as out:
+                async for chunk in request.stream():
+                    size += len(chunk)
+                    if size > MAX_UPLOAD:
+                        raise LektyraError("invalid", "The file is larger than 8 GB.")
+                    out.write(chunk)
+            return await run_in_threadpool(uploads.add, name, part)
+        finally:
+            part.unlink(missing_ok=True)
+
+    @api.delete("/uploads/{upload_id}", status_code=204)
+    def delete_upload(upload_id: str) -> Response:
+        source = f"{UPLOAD_PREFIX}{upload_id}"
+        if live.uses(source):
+            raise LektyraError("conflict", "A live session is playing this video. Stop it first.")
+        if schedule.uses(source):
+            raise LektyraError("conflict", "A scheduled run will play this video. Cancel it first.")
+        uploads.delete(upload_id)
+        return Response(status_code=204)
+
+    # scheduled live runs (ADR-016)
+    @api.get("/schedule")
+    def list_runs() -> list[Run]:
+        return schedule.runs()
+
+    @api.post("/schedule", status_code=201)
+    def add_run(body: RunIn) -> Run:
+        return schedule.add(body.source, body.title, body.starts_at, body.ends_at, body.transcribe)
+
+    @api.post("/schedule/{run_id}/cancel")
+    def cancel_run(run_id: str) -> Run:
+        return schedule.cancel(run_id)
 
     @api.api_route("/{rest:path}", methods=["GET", "POST", "PUT", "DELETE"], include_in_schema=False)
     def unknown(rest: str) -> JSONResponse:
@@ -368,10 +421,12 @@ def _spa(app: FastAPI, dist: Path) -> None:
         return FileResponse(index, headers={"Cache-Control": "no-store"})
 
 
-def create_app(review: Review, live: LiveManager, photos: Photos, dist: Path | None) -> FastAPI:
+def create_app(
+    review: Review, live: LiveManager, photos: Photos, uploads: Uploads, schedule: Scheduler, dist: Path | None
+) -> FastAPI:
     app = FastAPI(title="lektyra", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
     _install_errors(app)
-    app.include_router(_router(review, live, photos))
+    app.include_router(_router(review, live, photos, uploads, schedule))
     if dist is not None:
         _spa(app, dist)
     return app

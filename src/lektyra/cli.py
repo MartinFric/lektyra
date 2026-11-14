@@ -326,12 +326,17 @@ def end_pass(
 @app.command()
 def fetch(
     url: Annotated[str, typer.Argument(help="A TA3 article or ta3:<id>, YouTube, Facebook, a direct .m3u8/.mp4")],
-    name: Annotated[str | None, typer.Option(help="File name in data/videos (default: from the title)")] = None,
+    name: Annotated[str | None, typer.Option(help="File name (default: from the title)")] = None,
+    database: Annotated[str | None, typer.Option(help="Another database (e.g. lektyra_manual)")] = None,
 ) -> None:
-    """Download a video into data/videos/ to watch it next to a live session in the UI (ADR-013). Research use only,
-    stays local (ADR-005)."""
+    """Download a video and keep it as an upload (lektyra's MinIO): it appears in the Live screen, to be played as
+    live (ADR-016). Research use only, stays local (ADR-005)."""
+    from lektyra.adapters.store.postgres import Store, with_database
     from lektyra.app.ingest import default_source
+    from lektyra.app.photos import open_objects
+    from lektyra.app.uploads import Uploads
     from lektyra.domain.naming import slug
+    from lektyra.errors import LektyraError
 
     settings = load_settings()
     source = default_source(settings)
@@ -339,18 +344,28 @@ def fetch(
     if info.is_live:
         raise typer.BadParameter("this is a live stream: start it in the UI's Live screen instead of downloading it")
     stem = name or slug(info.title, 80) or "video"
-    out = settings.data_dir / "videos" / (stem if stem.endswith(".mp4") else f"{stem}.mp4")
+    file_name = stem if stem.endswith(".mp4") else f"{stem}.mp4"
+    store = Store(with_database(settings.database_url, database) if database else settings.database_url)
+    store.migrate(Path("migrations"))
+    objects = open_objects(settings, "videos", database)
+    uploads = Uploads(store, objects, settings.data_dir / "cache" / "uploads", settings.reviewer)
+    out = uploads.temp_file().with_suffix(".download.mp4")  # ffmpeg picks the container by the extension
     print(f"title    {info.title}")
     print(f"length   {info.duration_s / 60:.1f} min" if info.duration_s else "length   unknown")
-    print(f"saving   {out}")
-    source.download(info, out)
-    print(f"done     {out.stat().st_size / 1e6:.0f} MB")
+    try:
+        source.download(info, out)
+        upload = uploads.add(file_name, out)
+    except LektyraError as err:
+        _fail(err)
+    finally:
+        out.unlink(missing_ok=True)
+    print(f"done     {upload.name}, {upload.size / 1e6:.0f} MB: Live → Uploaded videos")
 
 
-def _picture_store(settings: "Settings") -> "ObjectStore":
+def _picture_store(settings: "Settings", database: str | None) -> "ObjectStore":
     from lektyra.app.photos import open_objects
 
-    return open_objects(settings)
+    return open_objects(settings, "pictures", database)
 
 
 def _sweep(photos: "Photos") -> None:
@@ -377,7 +392,7 @@ def _photos(database: str | None) -> "Photos":
     settings = load_settings()
     store = Store(with_database(settings.database_url, database) if database else settings.database_url)
     store.migrate(Path("migrations"))
-    return Photos(store, _picture_store(settings), settings.reviewer)
+    return Photos(store, _picture_store(settings, database), settings.reviewer)
 
 
 def _fail(err: "LektyraError") -> NoReturn:
@@ -486,8 +501,10 @@ def ui(
     from lektyra.adapters.store.postgres import Store, database_name, ensure_database, with_database
     from lektyra.adapters.web.api import create_app
     from lektyra.app.live import LiveManager, ecapa
-    from lektyra.app.photos import Photos
+    from lektyra.app.photos import Photos, open_objects
     from lektyra.app.review import Review
+    from lektyra.app.schedule import Scheduler
+    from lektyra.app.uploads import Uploads
 
     settings = load_settings()
     main_db = database_name(settings.database_url)
@@ -500,7 +517,7 @@ def ui(
     store = Store(url)
     applied = store.migrate(Path("migrations"))
     print(f"migrated {applied or 'nothing new'}")
-    photos = Photos(store, _picture_store(settings), settings.reviewer)
+    photos = Photos(store, _picture_store(settings, database), settings.reviewer)
     review = Review(store, settings.data_dir / "events", settings.reviewer, photos)
     synced = review.sync()
     print(f"synced   {synced.events} videos, {synced.speakers} speakers")
@@ -509,5 +526,20 @@ def ui(
     built = (dist / "index.html").exists()
     print(f"ui       http://127.0.0.1:{port}/{'' if built else '  (not built: npm run build in web/)'}")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
-    live = LiveManager(settings, store, review, ecapa(settings))
-    uvicorn.run(create_app(review, live, photos, dist), host="127.0.0.1", port=port, log_level="warning")
+    uploads = Uploads(
+        store,
+        open_objects(settings, "videos", database),
+        settings.data_dir / "cache" / "uploads",
+        settings.reviewer,
+    )
+    live = LiveManager(settings, store, review, ecapa(settings), resolve_upload=uploads.local)
+    schedule = Scheduler(store, live, settings.reviewer)
+    schedule.start()
+    upcoming = [r for r in schedule.runs() if r.status in ("scheduled", "running")]
+    print(
+        f"schedule {len(upcoming)} run(s) to come"
+        + (f", next {upcoming[0].starts_at.astimezone():%d.%m. %H:%M}" if upcoming else "")
+    )
+    print("         keep this running: scheduled runs start only while `lektyra ui` runs")
+    app_ = create_app(review, live, photos, uploads, schedule, dist)
+    uvicorn.run(app_, host="127.0.0.1", port=port, log_level="warning")

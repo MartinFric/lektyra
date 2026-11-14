@@ -8,17 +8,19 @@ interface DialogProps {
   readonly children: ReactNode;
   readonly footer?: ReactNode;
   readonly tone?: 'default' | 'danger';
+  /** lg: a form with more in it (the schedule dialog). */
+  readonly size?: 'md' | 'lg';
 }
 
 /**
  * A modal on the native <dialog>: focus trap, Escape and the backdrop come from the browser. Render it only while
  * it is open; the ref callback opens it as it mounts (no effect needed).
  */
-export function Dialog({ title, onClose, children, footer, tone = 'default' }: DialogProps) {
+export function Dialog({ title, onClose, children, footer, tone = 'default', size = 'md' }: DialogProps) {
   const titleId = useId();
   return (
     <dialog
-      className={`${styles.dialog} ${tone === 'danger' ? styles.danger : ''}`}
+      className={`${styles.dialog} ${tone === 'danger' ? styles.danger : ''} ${size === 'lg' ? styles.lg : ''}`}
       ref={(el) => {
         if (el && !el.open) el.showModal();
       }}

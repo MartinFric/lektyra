@@ -5,7 +5,7 @@ deletes, and every error has one shape. No real audio, voice or face is used (AD
 
 import json
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 
@@ -21,6 +21,8 @@ from lektyra.adapters.web.api import create_app
 from lektyra.app.live import LiveManager
 from lektyra.app.photos import Photos
 from lektyra.app.review import Person, Review
+from lektyra.app.schedule import Scheduler
+from lektyra.app.uploads import Uploads
 from lektyra.settings import Settings, load_settings
 from tests.fakes import MemoryObjects
 
@@ -31,6 +33,7 @@ DIM = 16
 ONE, TWO, THREE = "2026-01-01_10-00-00_one", "2026-01-02_10-00-00_two", "2026-01-03_10-00-00_three"
 VARIANT = "elevenlabs__scribe-v2@sk"
 OBJECTS = MemoryObjects()
+VIDEOS = MemoryObjects()
 COMMONS_PAGE = "https://commons.wikimedia.org/wiki/File:Delta_Person.jpg"
 
 
@@ -114,8 +117,10 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
     def no_embedder() -> tuple[Callable[[list[np.ndarray]], np.ndarray], str]:
         raise AssertionError("no live session runs in these tests")
 
-    live = LiveManager(Settings(data_dir=data), store, review, no_embedder)
-    with TestClient(create_app(review, live, photos, None)) as test_client:
+    uploads = Uploads(store, VIDEOS, data / "cache" / "uploads", "test")
+    live = LiveManager(Settings(data_dir=data), store, review, no_embedder, resolve_upload=uploads.local)
+    schedule = Scheduler(store, live, "test")  # its clock thread is not started: runs here are in the future
+    with TestClient(create_app(review, live, photos, uploads, schedule, None)) as test_client:
         yield test_client
     store.close()
 
@@ -290,14 +295,63 @@ def test_voice_map_places_every_speaker(client: TestClient) -> None:
     assert (one_s1["nearest"][0]["event_id"], one_s1["nearest"][0]["label"]) == (TWO, "S2")
 
 
-def test_live_guards(client: TestClient, tmp_path_factory: pytest.TempPathFactory) -> None:
-    assert client.get("/api/live").json() is None
-    assert client.get("/api/live/sources").json() == []
-    bad = client.post("/api/live", json={"source": "C:/Windows/notepad.exe"})
-    assert bad.status_code == 422
-    assert _error(bad)["code"] == "invalid"  # only files from data/videos or a stream address
-    assert client.post("/api/live/stop").status_code == 409
-    assert client.get("/api/live/media").status_code == 404
+def test_live_guards(client: TestClient) -> None:
+    assert client.get("/api/live/sessions").json() == []
+    for source in ("C:/Windows/notepad.exe", "stvr:3"):
+        bad = client.post("/api/live", json={"source": source})
+        assert bad.status_code == 422
+        assert _error(bad)["code"] == "invalid"  # a live channel, an address, PC sound or an upload; never a path
+    assert client.post("/api/live/nope/stop").status_code == 404
+    assert client.get("/api/live/nope/media").status_code == 404
+
+
+def _when(hours: float) -> str:
+    return (datetime.now(UTC) + timedelta(hours=hours)).isoformat()
+
+
+def test_a_video_is_uploaded_to_play_as_live_and_deleted_on_demand(client: TestClient) -> None:
+    body = b"\x00\x00\x00\x18ftypmp42" + b"0" * 100
+    answer = client.put("/api/uploads", params={"name": "../Hlina vs Takáč.mp4"}, content=body)
+    assert answer.status_code == 201
+    upload = answer.json()
+    assert (upload["name"], upload["kind"], upload["size"]) == ("Hlina vs Takáč.mp4", "video", len(body))
+    assert VIDEOS.keys("videos/") == [f"videos/{upload['id']}/Hlina vs Takáč.mp4"]
+    assert [u["id"] for u in client.get("/api/uploads").json()] == [upload["id"]]
+    source = f"upload:{upload['id']}"
+    run = client.post(
+        "/api/schedule", json={"source": source, "title": "Replay", "starts_at": _when(1), "ends_at": _when(2)}
+    ).json()
+    kept = client.delete(f"/api/uploads/{upload['id']}")
+    assert (kept.status_code, _error(kept)["code"]) == (409, "conflict")  # a scheduled run needs it
+    assert client.post(f"/api/schedule/{run['id']}/cancel").json()["status"] == "cancelled"
+    assert client.delete(f"/api/uploads/{upload['id']}").status_code == 204
+    assert (VIDEOS.keys("videos/"), client.get("/api/uploads").json()) == ([], [])
+
+
+def test_only_playable_files_are_uploaded(client: TestClient) -> None:
+    for name, body in (("notes.pdf", b"%PDF"), ("empty.mp4", b"")):
+        answer = client.put("/api/uploads", params={"name": name}, content=body)
+        assert (answer.status_code, _error(answer)["code"]) == (422, "invalid")
+    assert VIDEOS.keys("videos/") == []
+
+
+def test_runs_are_scheduled_listed_and_cancelled(client: TestClient) -> None:
+    run = {"source": "ta3:live", "title": "V politike", "starts_at": _when(1), "ends_at": _when(2)}
+    made = client.post("/api/schedule", json=run)
+    assert made.status_code == 201
+    assert (made.json()["status"], made.json()["session_id"]) == ("scheduled", None)
+    assert made.json()["id"] in [r["id"] for r in client.get("/api/schedule").json()]
+    for wrong in (
+        {**run, "ends_at": _when(0.5)},  # ends before it starts
+        {**run, "starts_at": _when(-3), "ends_at": _when(-2)},  # over already
+        {**run, "ends_at": _when(8)},  # longer than 6 hours
+        {**run, "source": "C:/Windows/notepad.exe"},
+    ):
+        answer = client.post("/api/schedule", json=wrong)
+        assert (answer.status_code, _error(answer)["code"]) == (422, "invalid")
+    assert client.post(f"/api/schedule/{made.json()['id']}/cancel").json()["status"] == "cancelled"
+    again = client.post(f"/api/schedule/{made.json()['id']}/cancel")
+    assert (again.status_code, _error(again)["code"]) == (409, "conflict")
 
 
 def test_voices_are_written_by_one_process_at_a_time(client: TestClient) -> None:

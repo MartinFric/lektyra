@@ -1,5 +1,7 @@
 """Test doubles for ports (ADR-002)."""
 
+from pathlib import Path
+
 from lektyra.errors import LektyraError
 
 
@@ -16,6 +18,12 @@ class MemoryObjects:
         if key not in self.files:
             raise LektyraError("not_found", "This picture is gone.")
         return self.files[key][0]
+
+    def put_file(self, key: str, path: Path, content_type: str) -> None:
+        self.put(key, path.read_bytes(), content_type)
+
+    def get_file(self, key: str, path: Path) -> None:
+        path.write_bytes(self.get(key))
 
     def delete(self, key: str) -> None:
         self.files.pop(key, None)

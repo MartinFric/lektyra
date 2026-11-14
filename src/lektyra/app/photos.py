@@ -10,12 +10,14 @@ never a row without its picture. `sweep` deletes those leftovers: when the UI st
 """
 
 import logging
-from typing import Final
+import re
+from pathlib import Path
+from typing import Final, Literal
 
 from lektyra.adapters.images.pictures import normalise_picture
 from lektyra.adapters.knowledge.wikimedia import QID, WikidataHit, Wikimedia
 from lektyra.adapters.objects.s3 import S3Objects
-from lektyra.adapters.store.postgres import PersonFields, PersonRow, PhotoSource, Store
+from lektyra.adapters.store.postgres import PersonFields, PersonRow, PhotoSource, Store, database_name
 from lektyra.errors import LektyraError
 from lektyra.ports import ObjectStore
 from lektyra.settings import Settings
@@ -24,8 +26,8 @@ PREFIX: Final = "persons/"
 log = logging.getLogger("lektyra.photos")
 
 
-class NoPictureStore:
-    """What runs without a login for the picture store: everything else works, pictures say why they do not."""
+class NoObjectStore:
+    """What runs without a login for lektyra's MinIO: everything else works; pictures and uploads say why not."""
 
     def __init__(self, reason: str) -> None:
         self._reason = reason
@@ -39,6 +41,12 @@ class NoPictureStore:
     def get(self, key: str) -> bytes:
         raise self._off()
 
+    def put_file(self, key: str, path: Path, content_type: str) -> None:
+        raise self._off()
+
+    def get_file(self, key: str, path: Path) -> None:
+        raise self._off()
+
     def delete(self, key: str) -> None:
         raise self._off()
 
@@ -46,13 +54,24 @@ class NoPictureStore:
         raise self._off()
 
 
-def open_objects(settings: Settings) -> ObjectStore:
-    """lektyra's MinIO from settings (`~/.secrets/lektyra-minio.env`). Nothing is contacted yet: a store that is down
-    now works once it is up, and the bucket is made by the first picture."""
+def bucket_name(base: str, database: str | None, main: str) -> str:
+    """Every database has its own buckets: a test database must never see (or sweep) the real pictures. The main
+    database keeps the plain name; another one gets its name appended (found 2026-11-14: a rehearsal on
+    lektyra_manual swept the main database's pictures as left over)."""
+    if database is None or database == main:
+        return base
+    return f"{base}-{re.sub(r'[^a-z0-9-]+', '-', database.lower()).strip('-')}"[:63]
+
+
+def open_objects(settings: Settings, kind: Literal["pictures", "videos"], database: str | None) -> ObjectStore:
+    """lektyra's MinIO from settings (`~/.secrets/lektyra-minio.env`): this database's pictures or videos bucket.
+    Nothing is contacted yet: a store that is down now works once it is up; the bucket is made by its first file."""
     user, password = settings.minio_root_user, settings.minio_root_password
     if user is None or password is None:
-        return NoPictureStore("No login for the picture store: ~/.secrets/lektyra-minio.env is missing.")
-    return S3Objects(settings.minio_url, user.get_secret_value(), password.get_secret_value(), settings.pictures_bucket)
+        return NoObjectStore("No login for lektyra's MinIO: ~/.secrets/lektyra-minio.env is missing.")
+    base = settings.pictures_bucket if kind == "pictures" else settings.videos_bucket
+    bucket = bucket_name(base, database, database_name(settings.database_url))
+    return S3Objects(settings.minio_url, user.get_secret_value(), password.get_secret_value(), bucket)
 
 
 class Photos:

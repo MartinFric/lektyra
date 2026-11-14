@@ -6,9 +6,11 @@ in its one shape and never with a stack trace.
 """
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
 import boto3
+from boto3.exceptions import S3UploadFailedError
 from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
@@ -17,7 +19,7 @@ from lektyra.errors import LektyraError
 if TYPE_CHECKING:
     from types_boto3_s3.client import S3Client
 
-UNREACHABLE: Final = "The picture store (lektyra's MinIO) is not reachable. Start it with: docker compose up -d"
+UNREACHABLE: Final = "lektyra's MinIO is not reachable. Start it with: docker compose up -d"
 MISSING: Final = ("NoSuchKey", "NoSuchBucket", "404", "NotFound")
 
 
@@ -42,14 +44,14 @@ class S3Objects:
             ),
         )
 
-    def _call[T](self, action: Callable[[], T], missing: str = "Not in the picture store.") -> T:
+    def _call[T](self, action: Callable[[], T], missing: str = "Not in lektyra's MinIO.") -> T:
         try:
             return action()
         except ClientError as err:
             if _code(err) in MISSING:
                 raise LektyraError("not_found", missing) from err
-            raise LektyraError("unavailable", f"The picture store refused: {_code(err) or 'unknown error'}.") from err
-        except BotoCoreError as err:
+            raise LektyraError("unavailable", f"lektyra's MinIO refused: {_code(err) or 'unknown error'}.") from err
+        except (BotoCoreError, S3UploadFailedError) as err:
             raise LektyraError("unavailable", UNREACHABLE) from err
 
     def ensure_bucket(self) -> bool:
@@ -74,6 +76,15 @@ class S3Objects:
                 raise
             self.ensure_bucket()
             self._call(write)
+
+    def put_file(self, key: str, path: Path, content_type: str) -> None:
+        self.ensure_bucket()
+        self._call(
+            lambda: self._client.upload_file(str(path), self._bucket, key, ExtraArgs={"ContentType": content_type})
+        )
+
+    def get_file(self, key: str, path: Path) -> None:
+        self._call(lambda: self._client.download_file(self._bucket, key, str(path)), "This file is gone.")
 
     def get(self, key: str) -> bytes:
         answer = self._call(lambda: self._client.get_object(Bucket=self._bucket, Key=key), "This picture is gone.")

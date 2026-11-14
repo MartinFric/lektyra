@@ -18,6 +18,7 @@ review that keeps it true).
 | [010](010-fact-check-sources.md) | Fact check: our data first, the web as fallback, two reliable sources | accepted, amended by 014 |
 | [011](011-ad-breaks-pause.md) | Ad breaks pause the analysis; listening continues | accepted |
 | [012](012-every-voice-has-a-number.md) | Every voice gets a number that continues across videos | accepted |
-| [013](013-live-session.md) | A live session: voices now, words a piece behind | accepted |
+| [013](013-live-session.md) | A live session: voices now, words a piece behind | accepted, §1 superseded by 016 |
 | [014](014-personal-project-own-data.md) | lektyra is a personal project and checks against its own data | accepted |
 | [015](015-a-face-next-to-a-name.md) | A face next to a name; pictures live in lektyra's own MinIO | accepted |
+| [016](016-scheduled-runs-uploads-parallel-sessions.md) | Scheduled live runs, uploaded videos played as live, several sessions at once | accepted |

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     minio_root_user: SecretStr | None = None
     minio_root_password: SecretStr | None = None
     pictures_bucket: str = "lektyra-pictures"
+    videos_bucket: str = "lektyra-videos"  # uploaded to play as live (ADR-016)
     data_dir: Path = Path("data")
     ffmpeg: str = "ffmpeg"
     ffprobe: str = "ffprobe"

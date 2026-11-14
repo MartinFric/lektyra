@@ -25,6 +25,7 @@ Row = dict[str, Any]
 SpeakerStatus = Literal["auto", "suggested", "unknown", "confirmed", "new"]
 FlagKind = Literal["words", "speaker", "name_number", "other"]
 PersonKind = Literal["politician", "host", "journalist", "expert", "official", "other"]
+RunStatus = Literal["scheduled", "running", "done", "failed", "missed", "cancelled"]
 ROBOT: Final = "lektyra"  # the actor of what matching does on its own
 VOICE_LOCK: Final = 4_851_302  # advisory lock key: who may write voices right now (ADR-012)
 
@@ -57,6 +58,34 @@ class PhotoRow(BaseModel):
     object_key: str
     content_type: str
     version: str
+
+
+class UploadRow(BaseModel):
+    id: str
+    name: str
+    size: int
+    content_type: str
+    object_key: str
+    added_at: datetime
+
+
+class RunRow(BaseModel):
+    id: str
+    source: str
+    title: str
+    starts_at: datetime
+    ends_at: datetime
+    transcribe: bool
+    status: RunStatus
+    session_id: str | None
+    event_id: str | None
+    message: str | None
+    created_at: datetime
+
+
+RUN_COLUMNS: Final = (
+    "id::text AS id, source, title, starts_at, ends_at, transcribe, status, session_id, event_id, message, created_at"
+)
 
 
 class PersonRow(BaseModel):
@@ -678,3 +707,99 @@ class Store:
             cur.execute("DELETE FROM transcript_flag WHERE id = %s AND event_id = %s RETURNING id", (flag_id, event_id))
             if cur.fetchone() is None:
                 raise LektyraError("not_found", f"No flag with id {flag_id}.")
+
+    # videos uploaded to play as live (ADR-016) ------------------------------------------------------------------
+    def uploads(self) -> list[UploadRow]:
+        with self._tx() as cur:
+            cur.execute(
+                """SELECT id::text AS id, name, size, content_type, object_key, added_at FROM video_upload
+                   ORDER BY added_at DESC"""
+            )
+            return [UploadRow.model_validate(r) for r in cur.fetchall()]
+
+    def upload(self, upload_id: str) -> UploadRow:
+        found = [u for u in self.uploads() if u.id == upload_id]
+        if not found:
+            raise LektyraError("not_found", "No such uploaded video.")
+        return found[0]
+
+    def add_upload(self, row: UploadRow, actor: str) -> None:
+        with self._tx() as cur:
+            cur.execute(
+                """INSERT INTO video_upload (id, name, size, content_type, object_key, added_by)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (row.id, row.name, row.size, row.content_type, row.object_key, actor),
+            )
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'upload', %s, jsonb_build_object('name', %s::text, 'size', %s::bigint))""",
+                (actor, row.id, row.name, row.size),
+            )
+
+    def delete_upload(self, upload_id: str, actor: str) -> None:
+        with self._tx() as cur:
+            cur.execute("DELETE FROM video_upload WHERE id::text = %s RETURNING id", (upload_id,))
+            if cur.fetchone() is None:
+                raise LektyraError("not_found", "No such uploaded video.")
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'upload', %s, '{"deleted": true}')""",
+                (actor, upload_id),
+            )
+
+    # scheduled live runs (ADR-016) ------------------------------------------------------------------------------
+    def runs(self, since: datetime) -> list[RunRow]:
+        """Runs still to come or running, and those that ended after `since`; soonest first."""
+        with self._tx() as cur:
+            cur.execute(
+                f"""SELECT {RUN_COLUMNS} FROM scheduled_run
+                    WHERE status IN ('scheduled', 'running') OR ends_at >= %s ORDER BY starts_at""",
+                (since,),
+            )
+            return [RunRow.model_validate(r) for r in cur.fetchall()]
+
+    def run(self, run_id: str) -> RunRow:
+        with self._tx() as cur:
+            cur.execute(f"SELECT {RUN_COLUMNS} FROM scheduled_run WHERE id::text = %s", (run_id,))
+            row = cur.fetchone()
+        if row is None:
+            raise LektyraError("not_found", "No such scheduled run.")
+        return RunRow.model_validate(row)
+
+    def add_run(
+        self, source: str, title: str, starts_at: datetime, ends_at: datetime, transcribe: bool, actor: str
+    ) -> RunRow:
+        with self._tx() as cur:
+            cur.execute(
+                f"""INSERT INTO scheduled_run (source, title, starts_at, ends_at, transcribe, created_by)
+                    VALUES (%s, %s, %s, %s, %s, %s) RETURNING {RUN_COLUMNS}""",
+                (source, title, starts_at, ends_at, transcribe, actor),
+            )
+            row = cur.fetchone()
+            if row is None:
+                raise LektyraError("internal", "The run was not saved.")
+            cur.execute(
+                """INSERT INTO audit_log (actor, action, subject, detail)
+                   VALUES (%s, 'schedule', %s, jsonb_build_object('source', %s::text, 'starts_at', %s::text))""",
+                (actor, row["id"], source, starts_at.isoformat()),
+            )
+            return RunRow.model_validate(row)
+
+    def update_run(
+        self,
+        run_id: str,
+        status: RunStatus,
+        message: str | None,
+        session_id: str | None = None,
+        event_id: str | None = None,
+    ) -> None:
+        """A run moves on: keeps its session and video unless new ones are given."""
+        with self._tx() as cur:
+            cur.execute(
+                """UPDATE scheduled_run SET status = %s, message = %s, session_id = coalesce(%s, session_id),
+                          event_id = coalesce(%s, event_id)
+                   WHERE id::text = %s RETURNING id""",
+                (status, message, session_id, event_id, run_id),
+            )
+            if cur.fetchone() is None:
+                raise LektyraError("not_found", "No such scheduled run.")

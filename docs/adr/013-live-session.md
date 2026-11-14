@@ -11,7 +11,7 @@ like a stream (ADR-007), so rehearsals are honest.
 
 ## Decision
 
-1. **One session per `lektyra ui`**; several can run side by side on other ports (`--port 8766`), on the same
+1. *(Superseded by ADR-016: several sessions run in one `lektyra ui`.)* **One session per `lektyra ui`**; several can run side by side on other ports (`--port 8766`), on the same
    database and the same voice numbers. Voices are written by one process at a time (a Postgres advisory lock, held
    while matching founds or joins voices), so two sessions never found the same voice twice. Tested: TA3 and STVR
    live at once, 0 orphaned voices. Each session is owned by its `lektyra ui`. Source: a file in `data/videos/` (from `lektyra fetch`: TA3,

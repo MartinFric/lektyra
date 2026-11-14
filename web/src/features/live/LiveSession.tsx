@@ -7,10 +7,9 @@ import { byLabel, speakerName } from '@/features/events/speakerName';
 import { flagsQuery, type Paragraph, transcriptQuery } from '@/features/transcript/api';
 import { FlagDialog } from '@/features/transcript/FlagDialog';
 import { Paragraphs } from '@/features/transcript/Paragraphs';
-import { apiUrl } from '@/platform/api';
 import { clock, count, talkTime } from '@/platform/format';
 import { Badge, Button, Card, CardHeader, EmptyState, Icon, Spinner, voiceColor } from '@/platform/ui';
-import { type LiveSpeaker, type LiveState, type LiveTurn, useStopLive } from './api';
+import { type LiveSpeaker, type LiveState, type LiveTurn, mediaUrl, useStopLive } from './api';
 import styles from './LivePage.module.css';
 
 const TIMELINE_MS = 5 * 60_000;
@@ -59,7 +58,7 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
           icon="x"
           disabled={state.status === 'stopping'}
           loading={stop.isPending}
-          onClick={() => { stop.mutate(); }}
+          onClick={() => { stop.mutate(state.id); }}
         >
           Stop
         </Button>
@@ -127,7 +126,7 @@ function VideoPanel({ state, video, watching, onTime }: VideoPanelProps) {
       <video
         ref={video}
         className={styles.video}
-        src={apiUrl('/live/media')}
+        src={mediaUrl(state.id)}
         controls
         autoPlay
         playsInline

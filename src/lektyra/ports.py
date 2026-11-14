@@ -6,6 +6,7 @@ added with the first adapter that needs them, not before.
 
 from collections.abc import Iterator
 from contextlib import AbstractContextManager
+from pathlib import Path
 from typing import IO, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,12 +50,19 @@ class PcmSink(AbstractContextManager["PcmSink"], Protocol):
 
 
 class ObjectStore(Protocol):
-    """Files kept by key (pictures, ADR-015): lektyra's own MinIO in production, memory in tests. A store that cannot
-    be reached raises LektyraError("unavailable"); a missing key raises LektyraError("not_found")."""
+    """Files kept by key (pictures ADR-015, uploaded videos ADR-016): lektyra's own MinIO in production, memory in
+    tests. A store that cannot be reached raises LektyraError("unavailable"); a missing key LektyraError("not_found").
+    """
 
     def put(self, key: str, data: bytes, content_type: str) -> None: ...
 
     def get(self, key: str) -> bytes: ...
+
+    def put_file(self, key: str, path: Path, content_type: str) -> None:
+        """A file too large for memory (a video), sent in parts."""
+        ...
+
+    def get_file(self, key: str, path: Path) -> None: ...
 
     def delete(self, key: str) -> None:
         """Gone afterwards; deleting a missing key is fine."""

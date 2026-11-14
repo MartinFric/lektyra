@@ -72,6 +72,9 @@ cd web && npm ci && npm run build && cd ..   # web/dist; `npm run check` = typec
 uv run lektyra ui                            # http://127.0.0.1:8765 — migrates, syncs data/events, serves
 cd web && npm run dev                        # while working on the UI: 5173, /api proxied to 8765
 uv run lektyra ui --database lektyra_manual --reset --port 8799   # throwaway copy for skill manual-testing
+# Live (ADR-016): several sessions at once, scheduled runs (Live → Schedule…) start while `lektyra ui` runs.
+# Another database gets its own MinIO buckets; give a rehearsal its own DATA_DIR so its videos stay out of data/.
+uv run lektyra fetch "https://www.youtube.com/watch?v=…"   # keep a recording as an upload, to play as live
 ```
 
 Ingest takes any source (ADR-007):
