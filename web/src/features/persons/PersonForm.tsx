@@ -12,6 +12,8 @@ import {
   useForgetPerson,
   useSavePerson,
 } from './api';
+import { AddVoiceDialog } from './AddVoiceDialog';
+import { DidYouMean } from './DidYouMean';
 import { MergeDialog } from './MergeDialog';
 import { PhotoField } from './PhotoField';
 import styles from './PersonForm.module.css';
@@ -22,6 +24,8 @@ interface PersonFormProps {
   readonly onClose: () => void;
   /** An unnamed voice was merged into a named person: show that person. */
   readonly onMerged: (into: Person) => void;
+  /** Show a person who already exists (instead of making a twin). */
+  readonly onOpen: (person: Person) => void;
 }
 
 function initialInput(person: Person | null): PersonInput {
@@ -37,10 +41,11 @@ function initialInput(person: Person | null): PersonInput {
 }
 
 /** Create or edit one person. Keyed by id by its parent, so switching persons starts from fresh state. */
-export function PersonForm({ person, onSaved, onClose, onMerged }: PersonFormProps) {
+export function PersonForm({ person, onSaved, onClose, onMerged, onOpen }: PersonFormProps) {
   const [input, setInput] = useState(() => initialInput(person));
   const [forgetting, setForgetting] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [addingVoice, setAddingVoice] = useState(false);
   const save = useSavePerson();
   const forget = useForgetPerson();
   const error = save.error;
@@ -75,6 +80,10 @@ export function PersonForm({ person, onSaved, onClose, onMerged }: PersonFormPro
           {person?.anonymous ? (
             <Button size="sm" icon="merge" className={styles.merge} onClick={() => { setMerging(true); }}>
               Merge with…
+            </Button>
+          ) : person ? (
+            <Button size="sm" icon="merge" className={styles.merge} onClick={() => { setAddingVoice(true); }}>
+              Add voice…
             </Button>
           ) : null}
         </div>
@@ -112,6 +121,9 @@ export function PersonForm({ person, onSaved, onClose, onMerged }: PersonFormPro
           />
         )}
       </Field>
+      {person === null || person.anonymous ? (
+        <DidYouMean voice={person} typed={input.name} onMerged={onMerged} onOpen={onOpen} />
+      ) : null}
       <div className={styles.pair}>
         <Field label="Type" hint="What they are on air">
           {({ id, describedBy }) => (
@@ -212,6 +224,8 @@ export function PersonForm({ person, onSaved, onClose, onMerged }: PersonFormPro
           {person ? 'Save' : 'Add person'}
         </Button>
       </footer>
+
+      {addingVoice && person ? <AddVoiceDialog person={person} onClose={() => { setAddingVoice(false); }} /> : null}
 
       {merging && person ? (
         <MergeDialog

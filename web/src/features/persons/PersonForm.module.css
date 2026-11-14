@@ -77,3 +77,45 @@
 .merge {
   margin-left: auto;
 }
+
+/* Did you mean…: persons already in the list that sound like the name being typed */
+.didYouMean {
+  display: grid;
+  gap: var(--s2);
+  margin-top: calc(-1 * var(--s2));
+  padding: var(--s3);
+  border: 1px solid color-mix(in srgb, var(--signal) 35%, var(--line));
+  border-radius: var(--radius);
+  background: var(--signal-soft);
+}
+
+.didYouMeanTitle {
+  color: var(--signal-strong);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.didYouMeanList {
+  display: grid;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.didYouMeanRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.didYouMeanText {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.didYouMeanMeta {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}

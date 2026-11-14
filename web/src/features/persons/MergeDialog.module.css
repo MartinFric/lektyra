@@ -112,3 +112,20 @@
   margin-right: var(--s1);
   vertical-align: middle;
 }
+
+/* Add voice…: a voice to pick, and ▶ to hear it first */
+.voiceRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.voiceRow > .option {
+  flex: 1;
+  min-width: 0;
+}
+
+.voiceRow[aria-selected='true'] > .option {
+  background: var(--signal-soft);
+  color: var(--signal-strong);
+}

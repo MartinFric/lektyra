@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPersons, plain } from './findPersons';
+import { findPersons, plain, similarPersons } from './findPersons';
 import { photoCredit, photoProblem } from './photos';
 
 const people = [
@@ -70,5 +70,35 @@ describe('photos', () => {
       terms: 'licence unknown, local use only',
     });
     expect(photoCredit({ version: 'v', source_url: null, license: null, author: null }).source).toBe('Uploaded by you');
+  });
+});
+
+describe('similarPersons', () => {
+  const list = [
+    { name: 'Michal Šimečka' },
+    { name: 'Matúš Šutaj Eštok' },
+    { name: 'Braňo Kráľ' },
+    { name: 'Robert Fico' },
+    { name: 'Tomáš Drucker' },
+    { name: 'Marek Gudiak' },
+  ];
+  const names = (text: string) => similarPersons(list, text).map((p) => p.name);
+
+  it('finds a person in any word order, without diacritics, by short form', () => {
+    expect(names('simecka miso')[0]).toBe('Michal Šimečka');
+    expect(names('Michal Simecka')[0]).toBe('Michal Šimečka');
+    expect(names('branislav kral')[0]).toBe('Braňo Kráľ');
+    expect(names('sutaj estok')[0]).toBe('Matúš Šutaj Eštok');
+  });
+
+  it('forgives a typo and an unfinished word', () => {
+    expect(names('simeckaa')[0]).toBe('Michal Šimečka');
+    expect(names('druck')[0]).toBe('Tomáš Drucker');
+    expect(names('gudyak')[0]).toBe('Marek Gudiak');
+  });
+
+  it('stays quiet when nobody is near', () => {
+    expect(names('Jozef Novák')).toEqual([]);
+    expect(names('a')).toEqual([]);
   });
 });

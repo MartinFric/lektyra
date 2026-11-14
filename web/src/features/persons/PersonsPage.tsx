@@ -72,6 +72,7 @@ export function PersonsPage() {
                     onSaved={(saved) => { open(String(saved.id)); }}
                     onClose={() => { open(null); }}
                     onMerged={(into) => { open(String(into.id)); }}
+                    onOpen={(p) => { open(String(p.id)); }}
                   />
                 );
               }}
