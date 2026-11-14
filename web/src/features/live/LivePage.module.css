@@ -440,7 +440,6 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s5);
-  margin-top: var(--s6);
   align-items: start;
 }
 
@@ -550,3 +549,63 @@
 .tab .pulse {
   color: var(--error);
 }
+
+/* the overview: what is being transcribed now */
+.nowPanel[data-live] {
+  border-color: color-mix(in srgb, var(--error) 35%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--error) 8%, transparent), var(--shadow-sm);
+}
+
+.nowTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  color: var(--error);
+}
+
+.nowList {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nowRow {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s3) 0;
+  border-top: 1px solid var(--line);
+}
+
+.nowRow:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.nowRowText {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.lastWords {
+  margin-top: var(--s1);
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-read);
+  line-height: var(--leading);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.next {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  color: var(--text);
+}
+

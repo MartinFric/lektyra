@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { eventsQuery } from '@/features/events/api';
+import { speakersDone } from '@/features/events/summary';
 import { clock, dateTime } from '@/platform/format';
 import { Badge, Button, Card, CardHeader, Icon, QueryView, Skeleton, type Tone } from '@/platform/ui';
 import { type Run, type RunStatus, scheduleQuery, uploadsQuery, useCancelRun } from './api';
@@ -24,7 +25,7 @@ function ordered(runs: readonly Run[]): Run[] {
 }
 
 /** Scheduled live runs: what comes, what runs, what ran and which video it became. */
-export function ScheduleCard({ onSchedule }: { readonly onSchedule: () => void }) {
+export function ScheduleCard() {
   const runs = useQuery(scheduleQuery);
   const uploads = useQuery(uploadsQuery);
   const cancel = useCancelRun();
@@ -32,12 +33,7 @@ export function ScheduleCard({ onSchedule }: { readonly onSchedule: () => void }
     <Card>
       <CardHeader
         title="Scheduled"
-        subtitle="lektyra starts and stops these itself while `lektyra ui` runs on this PC."
-        actions={
-          <Button size="sm" icon="calendar" onClick={onSchedule}>
-            Schedule…
-          </Button>
-        }
+        subtitle="lektyra's background service starts and stops these itself; this page only shows them."
       />
       <QueryView query={runs} loading={<Skeleton lines={3} height={40} />}>
         {(list) =>
@@ -117,7 +113,7 @@ export function RecentVideos() {
                       {e.title}
                     </Link>
                     <span className={styles.muted}>
-                      {dateTime(e.started_at)} · {clock(e.audio_ms)} · {e.named}/{e.speakers} voices named
+                      {dateTime(e.started_at)} · {clock(e.audio_ms)} · {speakersDone(e).text}
                       {e.transcripts > 0 ? '' : ' · no transcript yet'}
                     </span>
                   </span>

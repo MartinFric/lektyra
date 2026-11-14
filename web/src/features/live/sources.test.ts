@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { linkProblem, runProblem, runTimes, sourceLabel } from './sources';
+import { linkProblem, runProblem, runTimes, sourceLabel, startsIn } from './sources';
 
 describe('linkProblem', () => {
   it('takes public YouTube and Facebook addresses', () => {
@@ -46,5 +46,16 @@ describe('run times', () => {
     expect(runProblem(runTimes('2026-11-14', '20:00', '21:00'), now)).toMatch(/over/);
     expect(runProblem(runTimes('2026-11-15', '08:00', '15:00'), now)).toMatch(/6 hours/);
     expect(runProblem(null, now)).toMatch(/Pick/);
+  });
+});
+
+describe('startsIn', () => {
+  const now = new Date('2026-11-14T23:27:00');
+
+  it('says how soon, in words', () => {
+    expect(startsIn(new Date('2026-11-15T10:58:00'), now)).toBe('in 11 h 31 min');
+    expect(startsIn(new Date('2026-11-14T23:31:30'), now)).toBe('in 5 min');
+    expect(startsIn(new Date('2026-11-14T23:00:00'), now)).toBe('now');
+    expect(startsIn(new Date('2026-11-20T11:00:00'), now)).toBe('in 5 days'); // 5 days 11 h
   });
 });

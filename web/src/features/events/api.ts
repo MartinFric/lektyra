@@ -16,6 +16,7 @@ export const eventSummarySchema = z.object({
   started_at: z.coerce.date(),
   speakers: z.number().int(),
   named: z.number().int(),
+  mixed: z.number().int(),
   transcripts: z.number().int(),
 });
 

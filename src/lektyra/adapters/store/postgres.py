@@ -129,6 +129,7 @@ class EventRow(BaseModel):
     started_at: datetime
     speakers: int
     named: int
+    mixed: int  # several known people at once (ADR-017)
 
 
 class RatingRow(BaseModel):
@@ -298,7 +299,8 @@ class Store:
         with self._tx() as cur:
             cur.execute(
                 """SELECT e.id, e.title, e.source_url, e.is_live, e.audio_ms, e.started_at,
-                          count(s.id) AS speakers, count(s.id) FILTER (WHERE s.status = 'confirmed') AS named
+                          count(s.id) AS speakers, count(s.id) FILTER (WHERE s.status = 'confirmed') AS named,
+                          count(s.id) FILTER (WHERE s.status = 'overlap') AS mixed
                    FROM event e LEFT JOIN event_speaker s ON s.event_id = e.id
                    GROUP BY e.id ORDER BY e.started_at DESC"""
             )

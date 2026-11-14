@@ -4,6 +4,7 @@ import { clock, count, date } from '@/platform/format';
 import { Badge, Card, EmptyState, Icon, PageHeader, QueryView, Skeleton } from '@/platform/ui';
 import { type EventSummary, eventsQuery } from './api';
 import styles from './EventsPage.module.css';
+import { speakersDone } from './summary';
 
 export function EventsPage() {
   const events = useQuery(eventsQuery);
@@ -43,7 +44,7 @@ export function EventsPage() {
 }
 
 function EventCard({ event }: { readonly event: EventSummary }) {
-  const allNamed = event.speakers > 0 && event.named === event.speakers;
+  const done = speakersDone(event);
   return (
     <Link to={`/videos/${encodeURIComponent(event.id)}`} className={styles.cardLink}>
       <Card as="article" className={styles.card}>
@@ -57,9 +58,7 @@ function EventCard({ event }: { readonly event: EventSummary }) {
         <h2 className={styles.title}>{event.title}</h2>
         <p className={styles.meta}>Ingested {date(event.started_at)}</p>
         <div className={styles.badges}>
-          <Badge tone={allNamed ? 'ok' : event.named > 0 ? 'signal' : 'neutral'}>
-            {event.named}/{event.speakers} speakers named
-          </Badge>
+          <Badge tone={done.tone}>{done.text}</Badge>
           <Badge tone={event.transcripts > 0 ? 'signal' : 'warn'}>
             {count(event.transcripts, 'transcript')}
           </Badge>

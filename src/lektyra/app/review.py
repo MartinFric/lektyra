@@ -69,6 +69,7 @@ class EventSummary(BaseModel):
     started_at: datetime
     speakers: int
     named: int
+    mixed: int  # several known people at once (ADR-017)
     transcripts: int  # variants that cover every piece
 
 

@@ -64,6 +64,16 @@ export function dayInput(value: Date): string {
   return `${String(value.getFullYear())}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
 }
 
+/** "in 11 h 31 min", "in 5 min", "now": how soon a run starts. */
+export function startsIn(starts: Date, now: Date): string {
+  const minutes = Math.ceil((starts.getTime() - now.getTime()) / 60_000);
+  if (minutes <= 0) return 'now';
+  if (minutes < 60) return `in ${String(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `in ${String(hours)} h ${String(minutes % 60)} min`;
+  return `in ${String(Math.round(hours / 24))} days`;
+}
+
 /** "Ne 15. 11. 11:00–12:00": a run's time, short. */
 export function runWhen(starts: Date, ends: Date): string {
   const day = starts.toLocaleDateString('sk-SK', { weekday: 'short', day: 'numeric', month: 'numeric' });

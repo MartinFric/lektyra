@@ -6,72 +6,96 @@ import { isActive, liveSessionsQuery, type LiveState, uploadsQuery } from './api
 import { RecentVideos, ScheduleCard } from './Lists';
 import { LiveSession } from './LiveSession';
 import styles from './LivePage.module.css';
+import { NowPanel } from './NowPanel';
 import { ScheduleDialog } from './ScheduleDialog';
 import { sourceLabel } from './sources';
-import { StartPanel } from './StartPanel';
+import { StartDialog } from './StartDialog';
 
 /**
- * Live (ADR-013, ADR-016): sessions running now (several at once, as tabs), starting one, the schedule, and the
- * videos lektyra made. Which session is shown lives in the URL (?session=<id>, or ?session=new to start one).
+ * Live (ADR-013, ADR-016): an overview (what is being transcribed now, the schedule, the latest videos) and each
+ * session as a tab. Which one is shown lives in the URL (?session=<id>); none is the overview. Sessions run in the
+ * background service: this page only shows them.
  */
 export function LivePage() {
   const sessions = useQuery(liveSessionsQuery);
   const [params, setParams] = useSearchParams();
-  const [scheduling, setScheduling] = useState(false);
+  const [dialog, setDialog] = useState<'start' | 'schedule' | null>(null);
   const wanted = params.get('session');
-  const select = (id: string) => { setParams({ session: id }, { replace: true }); };
+  const select = (id: string | null) => { setParams(id === null ? {} : { session: id }, { replace: true }); };
 
   return (
     <>
       <PageHeader
         title="Live"
-        subtitle="lektyra listens in real time: who speaks now, their voice number or name, and the words as each piece is ready."
+        subtitle="What lektyra transcribes now, what it will transcribe, and what it made. Click a session to watch it."
         actions={
-          <Button variant="primary" icon="calendar" onClick={() => { setScheduling(true); }}>
-            Schedule…
-          </Button>
+          <>
+            <Button icon="play" onClick={() => { setDialog('start'); }}>
+              Start now…
+            </Button>
+            <Button variant="primary" icon="calendar" onClick={() => { setDialog('schedule'); }}>
+              Schedule…
+            </Button>
+          </>
         }
       />
       <QueryView query={sessions} loading={<Skeleton lines={6} height={24} />}>
         {(list) => {
-          const running = list.filter((s) => isActive(s.status));
-          const selected =
-            wanted === 'new' ? null : (list.find((s) => s.id === wanted) ?? (wanted === null ? (running[0] ?? null) : null));
+          const selected = wanted === null ? null : (list.find((s) => s.id === wanted) ?? null);
           return (
             <div className={styles.page}>
-              {list.length > 0 ? <SessionTabs sessions={list} selected={selected?.id ?? 'new'} onSelect={select} /> : null}
-              {selected && isActive(selected.status) ? (
+              {list.length > 0 ? <SessionTabs sessions={list} selected={selected?.id ?? null} onSelect={select} /> : null}
+              {selected === null ? (
+                <>
+                  <NowPanel sessions={list} onWatch={select} />
+                  <div className={styles.lists}>
+                    <ScheduleCard />
+                    <RecentVideos />
+                  </div>
+                </>
+              ) : isActive(selected.status) ? (
                 <LiveSession key={selected.id} state={selected} />
               ) : (
                 <div className={styles.idle}>
-                  {selected ? <LastSession state={selected} /> : null}
-                  <StartPanel onStarted={(s) => { select(s.id); }} />
+                  <LastSession state={selected} />
                 </div>
               )}
             </div>
           );
         }}
       </QueryView>
-      <div className={styles.lists}>
-        <ScheduleCard onSchedule={() => { setScheduling(true); }} />
-        <RecentVideos />
-      </div>
-      {scheduling ? <ScheduleDialog onClose={() => { setScheduling(false); }} /> : null}
+      {dialog === 'start' ? (
+        <StartDialog
+          onClose={() => { setDialog(null); }}
+          onStarted={(s) => {
+            setDialog(null);
+            select(s.id);
+          }}
+        />
+      ) : null}
+      {dialog === 'schedule' ? <ScheduleDialog onClose={() => { setDialog(null); }} /> : null}
     </>
   );
 }
 
 interface TabsProps {
   readonly sessions: readonly LiveState[];
-  readonly selected: string;
-  readonly onSelect: (id: string) => void;
+  readonly selected: string | null;
+  readonly onSelect: (id: string | null) => void;
 }
 
-/** One tab per session of this server (running first), and one to start another. */
+/** The overview, then one tab per session of the service (running first). */
 function SessionTabs({ sessions, selected, onSelect }: TabsProps) {
   const uploads = useQuery(uploadsQuery);
   return (
     <div className={styles.tabs} role="tablist" aria-label="Live sessions">
+      <button type="button" role="tab" aria-selected={selected === null} className={styles.tab} onClick={() => { onSelect(null); }}>
+        <Icon name="broadcast" size={15} />
+        <span className={styles.tabText}>
+          <strong>Overview</strong>
+          <span>now, scheduled, videos</span>
+        </span>
+      </button>
       {sessions.slice(0, 8).map((s) => {
         const on = isActive(s.status);
         return (
@@ -92,13 +116,6 @@ function SessionTabs({ sessions, selected, onSelect }: TabsProps) {
           </button>
         );
       })}
-      <button type="button" role="tab" aria-selected={selected === 'new'} className={styles.tab} onClick={() => { onSelect('new'); }}>
-        <Icon name="plus" size={15} />
-        <span className={styles.tabText}>
-          <strong>Start another</strong>
-          <span>several run at once</span>
-        </span>
-      </button>
     </div>
   );
 }
