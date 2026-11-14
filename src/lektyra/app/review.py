@@ -31,6 +31,7 @@ from lektyra.adapters.store.postgres import (
 from lektyra.app.ingest import load_manifest
 from lektyra.app.report import speaker_utterances
 from lektyra.app.transcribe import variant_of
+from lektyra.domain.clips import Span, choose_clips
 from lektyra.domain.diarization import Matrix, assign, normalise
 from lektyra.domain.matching import CHUNK, Status, decide, profile_samples, ranked
 from lektyra.domain.projection import project_2d
@@ -40,6 +41,9 @@ EVENT_ID: Final = re.compile(r"^[\w.@-]+$")
 ANSWER: Final = re.compile(r"^\d{4}\.json$")
 SPEAKER_LABEL: Final = re.compile(r"^S(\d+)$")
 CANDIDATES: Final = 3
+SPEAKER_CLIPS: Final = 4
+CLIPS_PER_VIDEO: Final = 2
+PERSON_CLIPS: Final = 6
 NEAREST: Final = 3
 
 
@@ -170,6 +174,16 @@ class VoicePoint(BaseModel):
     x: float
     y: float
     nearest: list[NearVoice]
+
+
+class Clip(BaseModel):
+    """A passage to hear a voice by: play `/api/events/{event_id}/audio` from `start_ms` to `end_ms`."""
+
+    event_id: str
+    event_title: str
+    label: str
+    start_ms: int
+    end_ms: int
 
 
 class SyncResult(BaseModel):
@@ -391,6 +405,36 @@ class Review:
                 )
             )
         return out
+
+    def _clips_of(self, event_id: str, title: str, label: str, limit: int) -> list[Clip]:
+        event_dir = self._events / event_id
+        diarization = self._diarization(event_dir) if (event_dir / "audio.flac").is_file() else None
+        if diarization is None:
+            return []
+        turns = [Span(t.start_ms, t.end_ms) for t in diarization.turns if t.speaker == label]
+        return [
+            Clip(event_id=event_id, event_title=title, label=label, start_ms=c.start_ms, end_ms=c.end_ms)
+            for c in choose_clips(turns, limit)
+        ]
+
+    def speaker_clips(self, event_id: str, label: str) -> list[Clip]:
+        """A speaker's clearest passages in one video, to recognise them by ear."""
+        self._dir(event_id)
+        return self._clips_of(event_id, self._store.event(event_id).title, label, SPEAKER_CLIPS)
+
+    def person_clips(self, person_id: int) -> list[Clip]:
+        """A voice's clearest passages across videos (newest first, Martin's names first): a reel to tell who it is."""
+        self._store.person(person_id)
+        titles = {e.id: e.title for e in self._store.events()}
+        heard = [s for s in self._store.speakers() if s.person_id == person_id and s.event_id in titles]
+        heard.reverse()  # newest video first
+        heard.sort(key=lambda s: s.status != "confirmed")  # stable: confirmed ones lead
+        clips: list[Clip] = []
+        for s in heard:
+            clips += self._clips_of(s.event_id, titles[s.event_id], s.label, CLIPS_PER_VIDEO)
+            if len(clips) >= PERSON_CLIPS:
+                break
+        return clips[:PERSON_CLIPS]
 
     def _speaker(self, event_id: str, label: str) -> SpeakerRow:
         self._dir(event_id)

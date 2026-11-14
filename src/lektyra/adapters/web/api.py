@@ -24,6 +24,7 @@ from starlette.exceptions import HTTPException
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
 from lektyra.app.live import LiveDevices, LiveManager, LiveSource, LiveState
 from lektyra.app.review import (
+    Clip,
     EventDetail,
     EventSummary,
     Flag,
@@ -191,6 +192,10 @@ def _router(review: Review, live: LiveManager) -> APIRouter:
     def update_person(person_id: int, body: PersonIn) -> Person:
         return review.save_person(person_id, body.fields())
 
+    @api.get("/persons/{person_id}/clips")
+    def person_clips(person_id: int) -> list[Clip]:
+        return review.person_clips(person_id)
+
     @api.delete("/persons/{person_id}", status_code=204)
     def forget_person(person_id: int) -> Response:
         review.forget_person(person_id)
@@ -217,6 +222,10 @@ def _router(review: Review, live: LiveManager) -> APIRouter:
     @api.get("/events/{event_id}/speakers")
     def speakers(event_id: str) -> list[Speaker]:
         return review.speakers(event_id)
+
+    @api.get("/events/{event_id}/speakers/{label}/clips")
+    def speaker_clips(event_id: str, label: str) -> list[Clip]:
+        return review.speaker_clips(event_id, label)
 
     @api.put("/events/{event_id}/speakers/{label}/person", status_code=204)
     def name_speaker(event_id: str, label: str, body: NameIn) -> Response:

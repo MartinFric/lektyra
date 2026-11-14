@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { count } from '@/platform/format';
 import { Badge, Button, Card, EmptyState, Icon, PageHeader, QueryView, Skeleton, TextInput } from '@/platform/ui';
+import { ReelButton } from '@/features/voices/Reel';
 import { KIND_LABELS, type Person, personsQuery } from './api';
 import { PersonForm } from './PersonForm';
 import styles from './PersonsPage.module.css';
@@ -97,7 +98,7 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
   const voices = shown.filter((p) => p.anonymous);
   const rows = (list: readonly Person[]) =>
     list.map((p) => (
-      <li key={p.id}>
+      <li key={p.id} className={styles.item}>
         <button
           type="button"
           className={styles.row}
@@ -126,6 +127,7 @@ function PersonList({ persons, filter, selected, onSelect }: PersonListProps) {
             {p.events > 0 ? <Badge>{count(p.events, 'video')}</Badge> : null}
           </span>
         </button>
+        {p.events > 0 ? <ReelButton source={{ kind: 'person', personId: p.id }} showWhere={false} /> : null}
       </li>
     ));
   return (

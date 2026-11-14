@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { ratingsQuery } from '@/features/transcript/api';
+import { ReelButton } from '@/features/voices/Reel';
 import { clock, engineName, talkTime } from '@/platform/format';
 import { useRequiredParam } from '@/platform/routing';
 import { Badge, Card, CardHeader, EmptyState, Icon, PageHeader, QueryView, Skeleton, voiceColor } from '@/platform/ui';
@@ -83,6 +84,7 @@ function SpeakerList({ eventId, speakers }: { readonly eventId: string; readonly
           <div className={styles.speakerHead}>
             <span className={styles.voice} style={{ background: voiceColor(s.label) }} aria-hidden="true" />
             <strong className={styles.label}>{s.label}</strong>
+            <ReelButton source={{ kind: 'speaker', eventId, label: s.label }} showWhere={false} />
             <span className={styles.talk}>
               {talkTime(s.talk_s)} · {Math.round(s.share * 100)} %
             </span>

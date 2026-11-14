@@ -57,6 +57,7 @@ def _event(folder: Path, voices: list[np.ndarray], rng: np.random.Generator) -> 
                    "unclear_s": 0, "turns": turns}  # fmt: skip
     (folder / "diarization.json").write_text(json.dumps(diarization), encoding="utf-8")
     (folder / "raw" / VARIANT).mkdir(parents=True)
+    (folder / "audio.flac").write_bytes(b"")  # clips only need it to exist; nothing is played in tests
 
 
 @pytest.fixture(scope="module")
@@ -129,6 +130,17 @@ def test_a_person_has_a_kind_a_lasting_key_and_a_knowledge_link(client: TestClie
     renamed = client.put(f"/api/persons/{made['id']}", json={"name": "Linked Again", "kind": "host"}).json()
     assert renamed["key"] == made["key"]  # the key outlives renames
     assert client.delete(f"/api/persons/{made['id']}").status_code == 204
+
+
+def test_a_voice_can_be_heard_from_its_clearest_passages_in_every_video(client: TestClient) -> None:
+    one = client.get(f"/api/events/{ONE}/speakers/S1/clips").json()
+    assert [(c["label"], c["start_ms"], c["end_ms"]) for c in one] == [
+        ("S1", 400, 12_400)
+    ]  # 40 s turn, trimmed, capped
+    voice_1 = next(p for p in client.get("/api/persons").json() if p["number"] == 1)
+    reel = client.get(f"/api/persons/{voice_1['id']}/clips").json()
+    assert [(c["event_id"], c["label"]) for c in reel] == [(TWO, "S2"), (ONE, "S1")]  # newest video first
+    assert client.get("/api/persons/999999/clips").status_code == 404
 
 
 def test_naming_a_voice_names_it_in_every_video_and_keeps_its_number(client: TestClient) -> None:

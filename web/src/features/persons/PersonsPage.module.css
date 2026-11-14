@@ -63,6 +63,13 @@
   list-style: none;
 }
 
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s2);
+}
+
 .row {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;

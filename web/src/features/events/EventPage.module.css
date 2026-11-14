@@ -55,7 +55,7 @@
 
 .speakerHead {
   display: grid;
-  grid-template-columns: 12px auto auto minmax(60px, 1fr);
+  grid-template-columns: 12px auto auto auto minmax(60px, 1fr);
   align-items: center;
   gap: var(--s2);
 }
