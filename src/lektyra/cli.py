@@ -491,16 +491,20 @@ def serve(
         str | None, typer.Option(help="Another database on the same server (e.g. lektyra_manual)")
     ] = None,
     reset: Annotated[bool, typer.Option(help="Drop and recreate --database first (never the main one)")] = False,
+    lan: Annotated[
+        bool, typer.Option(help="Also listen on the home network (the firewall lets in the local subnet only)")
+    ] = False,
 ) -> None:
     """lektyra's backend: the schedule, live sessions and the API, and the review UI it serves (ADR-009, ADR-016).
     Migrates, syncs data/events, then runs until stopped. The browser is only a view: closing it stops nothing.
     Started at logon by the Windows task "lektyra" (scripts/install-service.ps1)."""
     import logging
+    import socket
 
     import uvicorn
 
     from lektyra.adapters.store.postgres import Store, database_name, ensure_database, with_database
-    from lektyra.adapters.web.api import create_app
+    from lektyra.adapters.web.api import create_app, lan_hosts
     from lektyra.app.live import LiveManager, ecapa
     from lektyra.app.photos import Photos, open_objects
     from lektyra.app.review import Review
@@ -542,8 +546,13 @@ def serve(
         + (f", next {upcoming[0].starts_at.astimezone():%d.%m. %H:%M}" if upcoming else "")
     )
     print("         this process runs the schedule and the live sessions; the browser only shows them")
-    app_ = create_app(review, live, photos, uploads, schedule, dist, port)
-    uvicorn.run(app_, host="127.0.0.1", port=port, log_level="warning")
+    lan_names = lan_hosts() if lan else frozenset[str]()
+    if lan:
+        print(
+            f"home     http://lektyra.lan:{port}/ (hosts file) or http://{socket.gethostname().lower()}.local:{port}/"
+        )
+    app_ = create_app(review, live, photos, uploads, schedule, dist, port, lan_names)
+    uvicorn.run(app_, host="0.0.0.0" if lan else "127.0.0.1", port=port, log_level="warning")
 
 
 app.command(name="serve")(serve)

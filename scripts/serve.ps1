@@ -21,7 +21,7 @@ while ($true) {
     $log = Join-Path $logs ('serve-{0:yyyy-MM-dd}.log' -f (Get-Date))
     "$(Get-Date -Format s) starting lektyra serve" | Out-File -Append -Encoding utf8 $log
     docker compose up -d *>> $log
-    uv run lektyra serve *>> $log
+    uv run lektyra serve --lan *>> $log
     "$(Get-Date -Format s) lektyra serve stopped (exit $LASTEXITCODE); starting again in 15 s" | Out-File -Append -Encoding utf8 $log
     Start-Sleep -Seconds 15
 }

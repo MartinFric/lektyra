@@ -10,6 +10,7 @@ Messages are for Martin and never carry a key, a voice or a stack trace; the tra
 
 import logging
 import re
+import socket
 from pathlib import Path
 from typing import Annotated
 
@@ -444,27 +445,29 @@ def _spa(app: FastAPI, dist: Path) -> None:
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 # lektyra.localhost: a *.localhost name always means the device the browser runs on (RFC 6761), never DNS, so it
-# cannot be rebound; through an SSH tunnel from another computer it is this PC's lektyra (runbook).
+# cannot be rebound; through an SSH tunnel from another computer it is this PC's lektyra.
 HOSTS = frozenset({"127.0.0.1", "localhost", "lektyra.localhost", "testserver"})  # testserver: FastAPI's TestClient
 
 
 class SameMachine:
-    """Only this PC's own pages reach the API (review 2026-11-15, point 6). A request for another host name (DNS
+    """Only lektyra's own pages reach the API (review 2026-11-15, point 6). A request for another host name (DNS
     rebinding: a web page that renames itself to 127.0.0.1) is refused, and so is a change (POST, PUT, DELETE) a page
     of another origin sends: a body-less POST could stop a session or start a paid one. Tools without a browser send
-    no Origin and pass. Plain ASGI, so uploads still stream."""
+    no Origin and pass. With `serve --lan` the PC's own names on the home network count too. Plain ASGI, so uploads
+    still stream."""
 
-    def __init__(self, app: ASGIApp, origins: frozenset[str]) -> None:
+    def __init__(self, app: ASGIApp, hosts: frozenset[str], origins: frozenset[str]) -> None:
         self._app = app
+        self._hosts = hosts
         self._origins = origins
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http":
             headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
-            host = headers.get("host", "").rsplit(":", 1)[0]
+            host = headers.get("host", "").rsplit(":", 1)[0].lower()
             origin = headers.get("origin")
             foreign = scope["method"] not in SAFE_METHODS and origin is not None and origin not in self._origins
-            if host not in HOSTS or foreign:
+            if host not in self._hosts or foreign:
                 refused = _error("invalid", "Only lektyra's own pages on this PC may use this.")
                 refused.status_code = 403
                 await refused(scope, receive, send)
@@ -472,9 +475,19 @@ class SameMachine:
         await self._app(scope, receive, send)
 
 
-def own_origins(port: int) -> frozenset[str]:
-    """The UI itself, and Vite's dev server while the UI is worked on."""
-    return frozenset(f"http://{h}:{p}" for h in ("127.0.0.1", "localhost", "lektyra.localhost") for p in (port, 5173))
+def own_origins(port: int, lan: frozenset[str] = frozenset()) -> frozenset[str]:
+    """The UI itself (on this PC, and by the PC's names on the home network), and Vite's dev server."""
+    names = ("127.0.0.1", "localhost", "lektyra.localhost", *sorted(lan))
+    return frozenset(f"http://{h}:{p}" for h in names for p in (port, 5173))
+
+
+def lan_hosts() -> frozenset[str]:
+    """This PC's names and IPv4 addresses, for `serve --lan` (another computer at home: http://lektyra.lan:8765 from
+    its hosts file, or http://nisspc.local:8765). The host check still refuses every other name; who may connect at
+    all is the firewall's rule (local subnet). `.lan` is no public domain, so no outside DNS can rebind to it."""
+    name = socket.gethostname().lower()
+    addresses = {str(info[4][0]) for info in socket.getaddrinfo(name, None, socket.AF_INET)}
+    return frozenset({name, f"{name}.local", "lektyra.lan", *addresses})
 
 
 def create_app(
@@ -485,9 +498,10 @@ def create_app(
     schedule: Scheduler,
     dist: Path | None,
     port: int = 8765,
+    lan: frozenset[str] = frozenset(),
 ) -> FastAPI:
     app = FastAPI(title="lektyra", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
-    app.add_middleware(SameMachine, origins=own_origins(port))
+    app.add_middleware(SameMachine, hosts=HOSTS | lan, origins=own_origins(port, lan))
     _install_errors(app)
     app.include_router(_router(review, live, photos, uploads, schedule))
     if dist is not None:
