@@ -549,6 +549,10 @@ def test_only_this_pcs_own_pages_reach_the_api(client: TestClient) -> None:
     assert foreign.status_code == 403
     assert client.post("/api/sync", headers={"origin": "http://127.0.0.1:8765"}).status_code == 200
     assert client.post("/api/sync").status_code == 200  # a tool without a browser sends no Origin
+    # the name another computer uses through an SSH tunnel
+    tunnel = {"host": "lektyra.localhost:8765", "origin": "http://lektyra.localhost:8765"}
+    assert client.get("/api/persons", headers={"host": tunnel["host"]}).status_code == 200
+    assert client.post("/api/sync", headers=tunnel).status_code == 200
 
 
 def test_a_scheduled_time_needs_its_time_zone(client: TestClient) -> None:

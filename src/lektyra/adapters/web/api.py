@@ -443,7 +443,9 @@ def _spa(app: FastAPI, dist: Path) -> None:
 
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
-HOSTS = frozenset({"127.0.0.1", "localhost", "testserver"})  # testserver: FastAPI's TestClient
+# lektyra.localhost: a *.localhost name always means the device the browser runs on (RFC 6761), never DNS, so it
+# cannot be rebound; through an SSH tunnel from another computer it is this PC's lektyra (runbook).
+HOSTS = frozenset({"127.0.0.1", "localhost", "lektyra.localhost", "testserver"})  # testserver: FastAPI's TestClient
 
 
 class SameMachine:
@@ -472,7 +474,7 @@ class SameMachine:
 
 def own_origins(port: int) -> frozenset[str]:
     """The UI itself, and Vite's dev server while the UI is worked on."""
-    return frozenset(f"http://{h}:{p}" for h in ("127.0.0.1", "localhost") for p in (port, 5173))
+    return frozenset(f"http://{h}:{p}" for h in ("127.0.0.1", "localhost", "lektyra.localhost") for p in (port, 5173))
 
 
 def create_app(
