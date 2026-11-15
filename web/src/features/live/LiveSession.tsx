@@ -75,6 +75,8 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
         </Button>
       </Card>
 
+      {/* Two columns that grow on their own (Martin 2026-11-15: the voices list pushed the transcript down and left
+          a gap under the timeline): the words under the picture, the claims under who speaks now. */}
       <div className={styles.liveGrid}>
         <div className={styles.left}>
           {state.media ? (
@@ -87,19 +89,18 @@ export function LiveSession({ state }: { readonly state: LiveState }) {
             </Card>
           )}
           <Timeline turns={state.turns} position={state.position_ms} speakers={byName} />
+          {eventId ? (
+            <LiveTranscript state={state} eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} />
+          ) : null}
         </div>
         <div className={styles.right}>
           <NowCard state={state} eventId={eventId} speakers={byName} />
+          {eventId && state.transcribe ? (
+            <LiveClaims eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} />
+          ) : null}
           <HeardCard state={state} eventId={eventId} speakers={byName} />
         </div>
       </div>
-
-      {eventId ? (
-        <div className={styles.words}>
-          <LiveTranscript state={state} eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} />
-          {state.transcribe ? <LiveClaims eventId={eventId} speakers={byName} onSeek={state.media ? seek : null} /> : null}
-        </div>
-      ) : null}
     </div>
   );
 }

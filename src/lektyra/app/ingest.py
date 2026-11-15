@@ -25,6 +25,7 @@ from lektyra.adapters.media.ffmpeg_ytdlp import FfmpegYtdlpSource, FlacWriter
 from lektyra.adapters.media.stvr import StvrResolver
 from lektyra.adapters.media.ta3 import Ta3Resolver
 from lektyra.adapters.vad.silero_onnx import SileroVad, ensure_model
+from lektyra.atomic import swap
 from lektyra.domain.audio import (
     BYTES_PER_MS,
     FRAME_BYTES,
@@ -205,7 +206,7 @@ def run_ingest(
         )
         tmp = event_dir / "manifest.json.part"
         tmp.write_text(manifest.model_dump_json(indent=2), encoding="utf-8")
-        tmp.replace(event_dir / "manifest.json")
+        swap(tmp, event_dir / "manifest.json")
 
     log_path = event_dir / "ffmpeg.log"
     save(finished=False)

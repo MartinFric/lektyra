@@ -38,6 +38,7 @@ from lektyra.app.claims import run_claims, run_end_pass
 from lektyra.app.ingest import run_ingest
 from lektyra.app.review import Review
 from lektyra.app.transcribe import model_dir, transcribe_piece
+from lektyra.atomic import swap
 from lektyra.domain.audio import SAMPLE_RATE, Curve, Samples, ms_to_samples
 from lektyra.domain.chunking import CutRule, Piece
 from lektyra.domain.claims import MINUTE_MS
@@ -287,7 +288,10 @@ class LiveSession:
                 self._embs.append(np.asarray(v, dtype=np.float32))
                 self._tracker.add(np.asarray(v, dtype=np.float32))
         if end_ms - self._saved_at >= SAVE_EVERY_MS:
-            self._save()
+            try:
+                self._save()
+            except OSError as err:  # a save that fails is written again by the next one: never end the session
+                log.warning("voices not saved this time (%s); the next save writes them", err)
 
     def _piece(self, piece: Piece) -> None:
         with self._lock:
@@ -489,19 +493,19 @@ class LiveSession:
 def _replace_json(path: Path, value: object) -> None:
     tmp = path.with_suffix(".json.part")
     tmp.write_text(json.dumps(value, indent=1), encoding="utf-8")
-    tmp.replace(path)
+    swap(tmp, path)
 
 
 def _replace_npy(path: Path, value: Matrix) -> None:
     tmp = path.with_name(path.stem + ".part.npy")
     np.save(tmp, value)
-    tmp.replace(path)
+    swap(tmp, path)
 
 
 def _replace_npz(path: Path, windows: np.ndarray, emb: Matrix) -> None:
     tmp = path.with_name(path.stem + ".part.npz")
     np.savez(tmp, windows=windows, emb=emb)
-    tmp.replace(path)
+    swap(tmp, path)
 
 
 SOURCES_HINT: Final = (

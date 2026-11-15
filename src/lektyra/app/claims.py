@@ -18,6 +18,7 @@ from lektyra.adapters.llm.openrouter_claims import END_PASS, OpenRouterClaimExtr
 from lektyra.app.ingest import load_manifest
 from lektyra.app.report import speaker_utterances
 from lektyra.app.transcribe import model_dir
+from lektyra.atomic import swap
 from lektyra.domain.claims import MINUTE_MS, Claim, Ledger, ledger_digest, minute_window, step
 from lektyra.domain.timefmt import clock
 
@@ -152,7 +153,7 @@ def _write(ledger: Ledger, records: list[MinuteRecord], json_path: Path, md_path
 def _replace(path: Path, text: str) -> None:
     part = path.with_name(path.name + ".part")
     part.write_text(text, encoding="utf-8")
-    part.replace(path)
+    swap(part, path)
 
 
 def _row(c: Claim) -> str:
