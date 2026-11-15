@@ -7,6 +7,8 @@ other sounds on the PC (notifications, music) are heard too. Silence still arriv
 clock keeps running when nothing plays.
 """
 
+import ctypes
+import sys
 from collections.abc import Iterator
 from types import TracebackType
 from typing import IO, Any, Final, Self
@@ -18,6 +20,15 @@ from lektyra.domain.resample import CAPTURE_RATE, FACTOR, Decimator
 from lektyra.ports import SourceInfo
 
 PREFIX: Final = "pc:sound"
+COINIT_MULTITHREADED: Final = 0x0
+
+
+def _com_ready() -> None:
+    """soundcard's WASAPI calls need COM in the calling thread, and soundcard sets it up only in the thread that
+    imported it. A scheduled run opens the source in its own thread: without this every call failed with
+    Error 0x800401f0 (CO_E_NOTINITIALIZED), 2026-11-15 12:58. Calling it again in a thread is harmless."""
+    if sys.platform == "win32":
+        ctypes.windll.ole32.CoInitializeEx(None, COINIT_MULTITHREADED)
 
 
 def device_of(url: str) -> str | None:
@@ -32,6 +43,7 @@ def output_devices() -> tuple[list[str], str | None]:
         import soundcard
     except Exception:  # not Windows, or no audio stack: the UI simply offers no device
         return [], None
+    _com_ready()
     speakers: list[Any] = list(soundcard.all_speakers())
     default: Any = soundcard.default_speaker()
     return [str(s.name) for s in speakers], str(default.name) if default is not None else None
@@ -43,6 +55,7 @@ class LoopbackStream:
     def __init__(self, device: str | None) -> None:
         import soundcard
 
+        _com_ready()
         speaker: Any = soundcard.get_speaker(device) if device else soundcard.default_speaker()
         microphone: Any = soundcard.get_microphone(id=str(speaker.name), include_loopback=True)
         self._recorder: Any = microphone.recorder(samplerate=CAPTURE_RATE, channels=2)
@@ -51,6 +64,7 @@ class LoopbackStream:
         self._open = True
 
     def chunks(self, chunk_bytes: int) -> Iterator[bytes]:
+        _com_ready()  # the reader may be another thread than the one that opened the stream
         frames = max(1, chunk_bytes // SAMPLE_BYTES) * FACTOR
         while self._open:
             block = np.asarray(self._recorder.record(numframes=frames), dtype=np.float32)
