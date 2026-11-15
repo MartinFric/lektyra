@@ -22,6 +22,7 @@ import json
 import logging
 import queue
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from datetime import datetime
@@ -57,6 +58,8 @@ SAVE_EVERY_MS: Final = 5_000
 NOW_MS: Final = 2_500  # a speaker heard this recently is "speaking now"
 TAIL_MS: Final = 4_000
 RECENT_TURNS: Final = 80
+STT_ATTEMPTS: Final = 3
+STT_RETRY_S: Final = 3.0
 CLAIMS_EVERY_S: Final = 15.0  # how often the claims loop looks for a minute whose words are in
 STREAM_PREFIXES: Final = ("https://", "http://", "ta3:", "stvr:", "pc:sound")
 UPLOAD_PREFIX: Final = "upload:"  # a video uploaded to lektyra's MinIO, played as live
@@ -297,18 +300,24 @@ class LiveSession:
             event_dir, key = self._event_dir, self._api_key
             if event_dir is None or key is None:
                 continue
-            try:
-                record = transcribe_piece(event_dir, STT_MODEL, piece, api_key=key, language=STT_LANGUAGE)
-                with self._lock:
+            done = False
+            for attempt in range(STT_ATTEMPTS):  # a piece that fails is tried again before its minute moves on
+                try:
+                    record = transcribe_piece(event_dir, STT_MODEL, piece, api_key=key, language=STT_LANGUAGE)
                     if record.error is None:
-                        self._transcribed += 1
-                        self._cost += record.cost_usd or 0.0
-                    else:
-                        self._stt_errors += 1
-            except Exception as error:  # one failed piece must not stop the words of the next ones
-                log.warning("speech-to-text failed for piece %s: %s", piece.index, type(error).__name__)
+                        with self._lock:
+                            self._transcribed += 1
+                            self._cost += record.cost_usd or 0.0
+                        done = True
+                        break
+                    log.warning("speech-to-text failed for piece %s: %s", piece.index, record.error)
+                except Exception as error:  # one failed piece must not stop the words of the next ones
+                    log.warning("speech-to-text failed for piece %s: %s", piece.index, type(error).__name__)
+                if attempt + 1 < STT_ATTEMPTS:
+                    time.sleep(STT_RETRY_S * (attempt + 1))
+            if not done:
                 with self._lock:
-                    self._stt_errors += 1
+                    self._stt_errors += 1  # a hole in the words; the state shows how many
             with self._lock:
                 self._words_ms = max(self._words_ms, piece.end_ms)
 
@@ -337,7 +346,8 @@ class LiveSession:
         if event_dir is None or key is None:
             return
         with self._lock:
-            self._message = "Reviewing all claims once more…"
+            if self._status != "failed":  # a failure's message stays: the scheduler quotes it (review, point 7)
+                self._message = "Reviewing all claims once more…"
         try:
             run_end_pass(
                 event_dir, api_key=key, llm=self._settings.claims_model, engine=STT_MODEL, language=STT_LANGUAGE,

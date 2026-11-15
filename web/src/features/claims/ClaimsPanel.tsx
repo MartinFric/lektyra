@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { Speaker } from '@/features/events/api';
 import { speakerName } from '@/features/events/speakerName';
 import { FaceOf } from '@/features/persons/PersonFace';
@@ -34,6 +35,15 @@ export function ClaimsPanel({ claims, live = false, speakers, onSeek, highlight 
   const bySpeaker = countBy(all, filter.minWorth, 'speaker');
   const byKind = countBy(all, filter.minWorth, 'kind');
   const list = live && filter.sort === 'time' ? [...shown].reverse() : shown;
+  // Scroll the list to the current claim only when it changes, not on every render (playback re-renders about four
+  // times a second, and a scroll then would fight the reader's own: review 2026-11-15, point 3).
+  const scrolledTo = useRef<string | null>(null);
+  const keepInView = (el: HTMLLIElement | null, id: string) => {
+    const box = el?.parentElement;
+    if (!el || !box || scrolledTo.current === id) return;
+    scrolledTo.current = id;
+    box.scrollTop = Math.max(0, el.offsetTop - 8);
+  };
 
   return (
     <Card padded={false} className={styles.panel}>
@@ -127,7 +137,14 @@ export function ClaimsPanel({ claims, live = false, speakers, onSeek, highlight 
           ) : (
             <ol className={styles.list}>
               {list.map((c) => (
-                <ClaimItem key={c.id} claim={c} speakers={speakers} onSeek={onSeek} current={c.id === highlight} />
+                <ClaimItem
+                  key={c.id}
+                  claim={c}
+                  speakers={speakers}
+                  onSeek={onSeek}
+                  current={c.id === highlight}
+                  keepInView={keepInView}
+                />
               ))}
             </ol>
           )
@@ -142,9 +159,10 @@ interface ItemProps {
   readonly speakers: ReadonlyMap<string, Speaker>;
   readonly onSeek: ((ms: number) => void) | null;
   readonly current: boolean;
+  readonly keepInView: (el: HTMLLIElement | null, id: string) => void;
 }
 
-function ClaimItem({ claim, speakers, onSeek, current }: ItemProps) {
+function ClaimItem({ claim, speakers, onSeek, current, keepInView }: ItemProps) {
   const who = speakerName(claim.speaker, speakers);
   const speaker = speakers.get(claim.speaker);
   const faces =
@@ -157,15 +175,7 @@ function ClaimItem({ claim, speakers, onSeek, current }: ItemProps) {
     <li
       className={styles.item}
       data-current={current || undefined}
-      ref={
-        current
-          ? (el) => {
-              // keep it in view inside the list only: the page itself does not jump
-              const list = el?.parentElement;
-              if (el && list) list.scrollTop = Math.max(0, el.offsetTop - 8);
-            }
-          : undefined
-      }
+      ref={current ? (el) => { keepInView(el, claim.id); } : undefined}
     >
       <div className={styles.meta}>
         {onSeek ? (

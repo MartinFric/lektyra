@@ -539,3 +539,25 @@ def test_the_audience_is_left_out_of_claims_like_a_host(client: TestClient) -> N
     )
     seen = client.get(f"/api/events/{ONE}/claims").json()
     assert ([c["id"] for c in seen["claims"]], seen["hidden_host"]) == (["c1"], 1)
+
+
+def test_only_this_pcs_own_pages_reach_the_api(client: TestClient) -> None:
+    # review 2026-11-15, point 6: DNS rebinding (another host name) and other sites' pages are refused
+    rebinding = client.get("/api/persons", headers={"host": "evil.example"})
+    assert (rebinding.status_code, _error(rebinding)["code"]) == (403, "invalid")
+    foreign = client.post("/api/sync", headers={"origin": "https://evil.example"})
+    assert foreign.status_code == 403
+    assert client.post("/api/sync", headers={"origin": "http://127.0.0.1:8765"}).status_code == 200
+    assert client.post("/api/sync").status_code == 200  # a tool without a browser sends no Origin
+
+
+def test_a_scheduled_time_needs_its_time_zone(client: TestClient) -> None:
+    # review 2026-11-15, point 10: a naive time was a server error, now it is the sender's
+    run = {
+        "source": "ta3:live",
+        "title": "V politike",
+        "starts_at": "2030-01-06T11:00:00",
+        "ends_at": "2030-01-06T12:00:00",
+    }
+    answer = client.post("/api/schedule", json=run)
+    assert (answer.status_code, _error(answer)["code"]) == (422, "invalid")

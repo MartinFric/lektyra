@@ -10,7 +10,6 @@ Messages are for Martin and never carry a key, a voice or a stack trace; the tra
 
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -19,9 +18,10 @@ from fastapi import APIRouter, FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, AwareDatetime, BaseModel, Field, StringConstraints
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from lektyra.adapters.images.pictures import MAX_BYTES
 from lektyra.adapters.store.postgres import FlagKind, PersonFields, PersonKind
@@ -131,8 +131,8 @@ class LiveStartIn(BaseModel):
 class RunIn(BaseModel):
     source: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
     title: Name
-    starts_at: datetime
-    ends_at: datetime
+    starts_at: AwareDatetime  # with its time zone: "11:00" alone is not a moment
+    ends_at: AwareDatetime
     transcribe: bool = True
 
 
@@ -442,10 +442,50 @@ def _spa(app: FastAPI, dist: Path) -> None:
         return FileResponse(index, headers={"Cache-Control": "no-store"})
 
 
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+HOSTS = frozenset({"127.0.0.1", "localhost", "testserver"})  # testserver: FastAPI's TestClient
+
+
+class SameMachine:
+    """Only this PC's own pages reach the API (review 2026-11-15, point 6). A request for another host name (DNS
+    rebinding: a web page that renames itself to 127.0.0.1) is refused, and so is a change (POST, PUT, DELETE) a page
+    of another origin sends: a body-less POST could stop a session or start a paid one. Tools without a browser send
+    no Origin and pass. Plain ASGI, so uploads still stream."""
+
+    def __init__(self, app: ASGIApp, origins: frozenset[str]) -> None:
+        self._app = app
+        self._origins = origins
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
+            host = headers.get("host", "").rsplit(":", 1)[0]
+            origin = headers.get("origin")
+            foreign = scope["method"] not in SAFE_METHODS and origin is not None and origin not in self._origins
+            if host not in HOSTS or foreign:
+                refused = _error("invalid", "Only lektyra's own pages on this PC may use this.")
+                refused.status_code = 403
+                await refused(scope, receive, send)
+                return
+        await self._app(scope, receive, send)
+
+
+def own_origins(port: int) -> frozenset[str]:
+    """The UI itself, and Vite's dev server while the UI is worked on."""
+    return frozenset(f"http://{h}:{p}" for h in ("127.0.0.1", "localhost") for p in (port, 5173))
+
+
 def create_app(
-    review: Review, live: LiveManager, photos: Photos, uploads: Uploads, schedule: Scheduler, dist: Path | None
+    review: Review,
+    live: LiveManager,
+    photos: Photos,
+    uploads: Uploads,
+    schedule: Scheduler,
+    dist: Path | None,
+    port: int = 8765,
 ) -> FastAPI:
     app = FastAPI(title="lektyra", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
+    app.add_middleware(SameMachine, origins=own_origins(port))
     _install_errors(app)
     app.include_router(_router(review, live, photos, uploads, schedule))
     if dist is not None:

@@ -542,7 +542,7 @@ def serve(
         + (f", next {upcoming[0].starts_at.astimezone():%d.%m. %H:%M}" if upcoming else "")
     )
     print("         this process runs the schedule and the live sessions; the browser only shows them")
-    app_ = create_app(review, live, photos, uploads, schedule, dist)
+    app_ = create_app(review, live, photos, uploads, schedule, dist, port)
     uvicorn.run(app_, host="127.0.0.1", port=port, log_level="warning")
 
 

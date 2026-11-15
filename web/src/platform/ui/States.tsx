@@ -70,8 +70,14 @@ interface QueryViewProps<T> {
   readonly loading?: ReactNode;
 }
 
-/** One way to show a query: a skeleton while it loads, an error panel with a retry, then the data. */
+/**
+ * One way to show a query: a skeleton while it loads, an error panel with a retry, then the data. Once there is data,
+ * a failed refresh keeps showing it (the query client toasts the failure): one failed poll of a live session must
+ * not swap the whole screen for an error and restart its video (review 2026-11-15, point 2).
+ */
 export function QueryView<T>({ query, children, loading }: QueryViewProps<T>) {
+  const data = query.data;
+  if (data !== undefined) return <>{children(data)}</>;
   if (query.isPending) return <>{loading ?? <Skeleton />}</>;
   if (query.isError) {
     return (
@@ -82,5 +88,5 @@ export function QueryView<T>({ query, children, loading }: QueryViewProps<T>) {
       />
     );
   }
-  return <>{children(query.data)}</>;
+  return <>{loading ?? <Skeleton />}</>;
 }

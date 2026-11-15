@@ -7,13 +7,14 @@ is reused unless `force`, so a replay is free and deterministic. After every min
 """
 
 import json
+import time
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from pydantic import SecretStr, TypeAdapter
 
-from lektyra.adapters.llm.openrouter_claims import END_PASS, OpenRouterClaimExtractor, parse
+from lektyra.adapters.llm.openrouter_claims import END_PASS, OpenRouterClaimExtractor, RawCompletion, parse
 from lektyra.app.ingest import load_manifest
 from lektyra.app.report import speaker_utterances
 from lektyra.app.transcribe import model_dir
@@ -51,6 +52,7 @@ def run_claims(
     force: bool = False,
     on_minute: Callable[[MinuteRecord, Ledger], None] = lambda _r, _l: None,
     roles: Mapping[str, str] | None = None,
+    sleep: Callable[[float], None] = time.sleep,
 ) -> ClaimsResult:
     """`roles`: who the voice labels are, when known ("S1": "Braňo Kráľ (host)"); new minutes are told, so the
     lekton names people and a host's words are not taken as claims (K60). Saved answers are reused as they are."""
@@ -74,10 +76,13 @@ def run_claims(
             ledger = step(ledger, minute, [])
             continue
         raw = folder / f"m{minute:03d}.json"
-        cached = raw.exists() and not force
+        skipped = folder / f"m{minute:03d}.skipped"
+        cached = (raw.exists() or skipped.exists()) and not force
         error: str | None = None
         wall = 0
-        if cached:
+        if cached and not raw.exists():  # failed for good once: stays empty, so later minutes keep their ids
+            body, error = "", skipped.read_text(encoding="utf-8")[:200]
+        elif cached:
             body = raw.read_text(encoding="utf-8")
         else:
             user = (
@@ -85,11 +90,9 @@ def run_claims(
                 f"CONTEXT (already processed):\n{context or '(none)'}\n\n"
                 f"NEW MINUTE {clock(start_ms)}-{clock(start_ms + MINUTE_MS)}:\n{new}"
             )
-            answer = extractor.ask(user)
+            answer = ask_minute(extractor.ask, user, raw, skipped, sleep)
             body, wall = answer.body, answer.wall_ms
-            if answer.status == 200:
-                raw.write_text(body, encoding="utf-8")
-            else:
+            if answer.status != 200:
                 error = f"HTTP {answer.status}"
         try:
             parsed = parse(body, start_ms)
@@ -103,6 +106,29 @@ def run_claims(
         on_minute(record, ledger)
     _write(ledger, records, json_path, md_path, manifest.source.title, llm, engine)
     return ClaimsResult(ledger=ledger, minutes=records, json_path=json_path, md_path=md_path)
+
+
+ASK_ATTEMPTS = 3
+RETRY_S = 4.0
+
+
+def ask_minute(
+    ask: Callable[[str], RawCompletion], user: str, raw: Path, skipped: Path, sleep: Callable[[float], None]
+) -> RawCompletion:
+    """Ask for one minute, a few times if the model fails. An answer is saved; a minute that still fails is marked
+    skipped for good. Claim ids are positions in the ledger and every round replays the saved minutes, so a minute
+    answered late would shift the ids that later minutes already refer to (review 2026-11-15, point 5)."""
+    answer = ask(user)
+    for attempt in range(1, ASK_ATTEMPTS):
+        if answer.status == 200:
+            break
+        sleep(RETRY_S * attempt)
+        answer = ask(user)
+    if answer.status == 200:
+        raw.write_text(answer.body, encoding="utf-8")
+    else:
+        skipped.write_text(f"HTTP {answer.status}: {answer.body[:300]}", encoding="utf-8")
+    return answer
 
 
 def speakers_note(roles: Mapping[str, str] | None) -> str:
